@@ -108,8 +108,10 @@ def run(limit: int | None = None) -> None:
         _deploy_subprocess(command='git config --local user.name "github-actions[bot]"', cwd=repo_directory)
         _deploy_subprocess(command=f"git checkout -b {commit_hash}", cwd=repo_directory)
         _deploy_subprocess(command="git add .", cwd=repo_directory)
-        _deploy_subprocess(command='git commit --message "update"', cwd=repo_directory)
-        subprocess.run(args=f"git push --set-upstream origin {commit_hash}", cwd=repo_directory)
+        _deploy_subprocess(command='git commit --message "update"', cwd=repo_directory, ignore_errors=True)
+        _deploy_subprocess(
+            command=f"git push --set-upstream origin {commit_hash}", cwd=repo_directory, ignore_errors=True
+        )
 
         print(f"\nProcess complete for Dandiset {dandiset_id}!\n\n")
 
