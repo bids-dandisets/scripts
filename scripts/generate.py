@@ -1,11 +1,11 @@
+import importlib
 import os
 import pathlib
-import importlib
-
-import requests
 import subprocess
 
 import dandi.dandiapi
+import requests
+
 import nwb2bids
 
 LIMIT_SESSIONS = 2
@@ -26,9 +26,7 @@ BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets")
 
 def run(limit: int | None = None) -> None:
     commit_hash = (
-        subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=pathlib.Path(nwb2bids.__file__).parents[1]
-        )
+        subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=pathlib.Path(nwb2bids.__file__).parents[1])
         .strip()
         .decode()
     )
@@ -45,7 +43,7 @@ def run(limit: int | None = None) -> None:
         repo_directory = BASE_DIRECTORY / dandiset_id
 
         dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
-            dandiset_id=dandiset_id
+            dandiset_id=dandiset_id, limit=LIMIT_DANDISETS
         )
         if len(dataset_converter.session_converters) == 0:
             print(f"No NWB files found in Dandiset {dandiset_id}, skipping...")
@@ -72,9 +70,7 @@ def run(limit: int | None = None) -> None:
 
         print(f"Converting {dandiset_id}...")
         dataset_converter.extract_metadata()
-        dataset_converter.convert_to_bids_dataset(
-            bids_directory=repo_directory, limit=LIMIT_SESSIONS
-        )
+        dataset_converter.convert_to_bids_dataset(bids_directory=repo_directory)
 
         print(f"Pushing updates to GitHub repository for Dandiset {dandiset_id}...")
         email_config_command = [
@@ -89,13 +85,9 @@ def run(limit: int | None = None) -> None:
             args=["git", "config", "--local", "user.name ", '"github-actions[bot]"'],
             cwd=repo_directory,
         )
-        subprocess.run(
-            args=["git", "checkout", "--branch", commit_hash], cwd=repo_directory
-        )
+        subprocess.run(args=["git", "checkout", "--branch", commit_hash], cwd=repo_directory)
         subprocess.run(args=["git", "add", "."], cwd=repo_directory)
-        subprocess.run(
-            args=["git", "commit", "--message", '"update"'], cwd=repo_directory
-        )
+        subprocess.run(args=["git", "commit", "--message", '"update"'], cwd=repo_directory)
         subprocess.run(
             args=["git", "push", "--set-upstream", "origin", commit_hash],
             cwd=repo_directory,
