@@ -24,12 +24,41 @@ BASE_GITHUB_URL = "https://api.github.com/repos"
 BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets")
 
 
-def run(limit: int | None = None) -> None:
-    commit_hash = (
-        subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=pathlib.Path(nwb2bids.__file__).parents[1])
-        .strip()
-        .decode()
+def _deploy_subprocess(
+    *,
+    command: str | list[str],
+    cwd: str | pathlib.Path | None = None,
+    environment_variables: dict[str, str] | None = None,
+    error_message: str | None = None,
+    ignore_errors: bool = False,
+) -> str | None:
+    error_message = error_message or "An error occurred while executing the command."
+
+    result = subprocess.run(
+        args=command,
+        cwd=cwd,
+        shell=True,
+        env=environment_variables,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
     )
+    if result.returncode != 0 and ignore_errors is False:
+        message = (
+            f"\n\nError code {result.returncode}\n"
+            f"{error_message}\n\n"
+            f"stdout: {result.stdout}\n\n"
+            f"stderr: {result.stderr}\n\n"
+        )
+        raise RuntimeError(message)
+    if result.returncode != 0 and ignore_errors is True:
+        return None
+
+    return result.stdout
+
+
+def run(limit: int | None = None) -> None:
+    commit_hash = _deploy_subprocess(command="git rev-parse HEAD", cwd=pathlib.Path(nwb2bids.__file__).parents[1])
     print(f"\nnwb2bids commit hash: {commit_hash}\n\n")
 
     client = dandi.dandiapi.DandiAPIClient()
@@ -61,37 +90,26 @@ def run(limit: int | None = None) -> None:
             response = requests.post(repo_url, headers=headers, json=data)
             response.raise_for_status()
         else:
-            subprocess.run(args=["git", "fetch"], cwd=repo_directory)
+            _deploy_subprocess(command="git fetch", cwd=repo_directory)
 
         if not repo_directory.exists():
             print(f"Cloning GitHub repository for Dandiset {dandiset_id}...")
 
-            subprocess.run(args=["git", "clone", repo_url], cwd=BASE_DIRECTORY)
+            _deploy_subprocess(command=[f"git clone {repo_url}"], cwd=BASE_DIRECTORY)
 
         print(f"Converting {dandiset_id}...")
         dataset_converter.extract_metadata()
         dataset_converter.convert_to_bids_dataset(bids_directory=repo_directory)
 
         print(f"Pushing updates to GitHub repository for Dandiset {dandiset_id}...")
-        email_config_command = [
-            "git",
-            "config",
-            "--local",
-            "user.email",
-            '"github-actions[bot]@users.noreply.github.com"',
-        ]
-        subprocess.run(args=email_config_command, cwd=repo_directory)
-        subprocess.run(
-            args=["git", "config", "--local", "user.name ", '"github-actions[bot]"'],
-            cwd=repo_directory,
+        _deploy_subprocess(
+            command='git config --local user.email "github-actions[bot]@users.noreply.github.com"', cwd=repo_directory
         )
-        subprocess.run(args=["git", "checkout", "--branch", commit_hash], cwd=repo_directory)
-        subprocess.run(args=["git", "add", "."], cwd=repo_directory)
-        subprocess.run(args=["git", "commit", "--message", '"update"'], cwd=repo_directory)
-        subprocess.run(
-            args=["git", "push", "--set-upstream", "origin", commit_hash],
-            cwd=repo_directory,
-        )
+        _deploy_subprocess(command='git config --local user.name "github-actions[bot]"', cwd=repo_directory)
+        _deploy_subprocess(command=f"git checkout -b {commit_hash}", cwd=repo_directory)
+        _deploy_subprocess(command="git add .", cwd=repo_directory)
+        _deploy_subprocess(command='git commit --message "update"', cwd=repo_directory)
+        subprocess.run(args=f"git push --set-upstream origin {commit_hash}", cwd=repo_directory)
 
         print(f"\nProcess complete for Dandiset {dandiset_id}!\n\n")
 
