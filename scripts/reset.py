@@ -63,7 +63,8 @@ def reset_github_repos() -> None:
 
         print(f"Cleaning Dandiset {dandiset_id}...")
         print("Cleaning local directory...")
-        shutil.rmtree(path=repo_directory)
+        if repo_directory.exists():
+            shutil.rmtree(path=repo_directory)
 
         repo_name = f"bids-dandisets/{dandiset_id}"
         repo_api_url = f"{BASE_GITHUB_API_URL}/{repo_name}"
