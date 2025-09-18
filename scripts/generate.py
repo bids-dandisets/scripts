@@ -6,9 +6,8 @@ import shutil
 import subprocess
 
 import dandi.dandiapi
-import requests
-
 import nwb2bids
+import requests
 
 LIMIT_SESSIONS = 2
 LIMIT_DANDISETS = None
