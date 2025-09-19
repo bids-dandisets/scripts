@@ -12,7 +12,7 @@ import nwb2bids
 import requests
 
 LIMIT_SESSIONS = 10
-LIMIT_DANDISETS = 5
+LIMIT_DANDISETS = None
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", None)
 if GITHUB_TOKEN is None:
@@ -58,6 +58,7 @@ def run(limit: int | None = None) -> None:
         repo_directory = BASE_DIRECTORY / dandiset_id
 
         print(f"Processing Dandiset {dandiset_id}...")
+
         repo_name = f"bids-dandisets/{dandiset_id}"
         repo_api_url = f"{BASE_GITHUB_API_URL}/{repo_name}"
         response = requests.get(url=repo_api_url, headers=authentication_header)
@@ -68,24 +69,32 @@ def run(limit: int | None = None) -> None:
                 continue
 
             print("\tForking GitHub repository...")
+
             repo_fork_url = f"https://api.github.com/repos/dandisets/{dandiset_id}/forks"
             headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
             data = {"organization": "bids-dandisets"}
             response = requests.post(url=repo_fork_url, headers=headers, json=data)
             if response.status_code != 202:
                 print(f"\tStatus code {response.status_code}: {response.json()['message']}")
+
                 continue
-            time.sleep(10)  # Give it some time to complete
+            time.sleep(30)  # Give it some time to complete
 
         # Decide whether to skip based on hidden details of generation runs
         run_info_url = f"{raw_content_base_url}/{dandiset_id}/draft/.run_info.json"
         response = requests.get(url=run_info_url, headers=authentication_header)
         if response.status_code == 200:
             previous_run_info = response.json()
-            previous_nwb2bids_version_tag = previous_run_info.get("nwb2bids_version", "")
+            previous_generation_script_version_tag = previous_run_info.get("generation_script_version_tag", "")
+            previous_nwb2bids_version_tag = previous_run_info.get("nwb2bids_version_tag", "")
             previous_session_limit = previous_run_info.get("limit", 0)
-            if nwb2bids_version_tag == previous_nwb2bids_version_tag and LIMIT_SESSIONS <= previous_session_limit:
+            if (
+                previous_generation_script_version_tag == generation_script_version_tag
+                and nwb2bids_version_tag == previous_nwb2bids_version_tag
+                and LIMIT_SESSIONS <= previous_session_limit
+            ):
                 print(f"Skipping {dandiset_id} - already up to date!\n\n")
+
                 continue
         elif response.status_code == 403:  # TODO: Not sure how to handle this yet
             continue
@@ -102,6 +111,7 @@ def run(limit: int | None = None) -> None:
         _update_draft(repo_directory=repo_directory)
 
         print(f"Converting {dandiset_id}...")
+
         dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
             dandiset_id=dandiset_id, limit=LIMIT_SESSIONS
         )
