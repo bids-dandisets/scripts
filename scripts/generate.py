@@ -24,7 +24,9 @@ if "site-packages" in importlib.util.find_spec("nwb2bids").origin:
 
 BASE_GITHUB_URL = f"https://{GITHUB_TOKEN}@github.com"
 BASE_GITHUB_API_URL = "https://api.github.com/repos"
+raw_content_base_url = "https://raw.githubusercontent.com/bids-dandisets"
 BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets")
+authentication_header = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 
 def run(limit: int | None = None) -> None:
@@ -44,7 +46,7 @@ def run(limit: int | None = None) -> None:
         print(f"Processing Dandiset {dandiset_id}...")
         repo_name = f"bids-dandisets/{dandiset_id}"
         repo_api_url = f"{BASE_GITHUB_API_URL}/{repo_name}"
-        response = requests.get(url=repo_api_url, headers={"Authorization": f"token {GITHUB_TOKEN}"})
+        response = requests.get(url=repo_api_url, headers=authentication_header)
         if response.status_code != 200:
             print(f"Status code {response.status_code}: {response.json()["message"]}")
 
@@ -69,6 +71,20 @@ def run(limit: int | None = None) -> None:
                 print(f"\tStatus code {response.status_code}: {response.json()['message']}")
                 continue
 
+        # Decide whether to skip based on hidden details of generation runs
+        run_info_url = f"{raw_content_base_url}/{dandiset_id}/draft/.run_info.json"
+        response = requests.get(url=run_info_url, headers=authentication_header)
+        if response.status_code == 200:
+            previous_run_info = response.json()
+            previous_commit_hash = previous_run_info.get("commit_hash", "")
+            previous_session_limit = previous_run_info.get("limit", 0)
+            if commit_hash == previous_commit_hash and LIMIT_SESSIONS <= previous_session_limit:
+                print(f"Skipping {dandiset_id} - already up to date!\n\n")
+                continue
+        elif response.status_code == 403:  # TODO: Not sure how to handle this yet
+            continue
+
+        # Clone the repo or fetch the latest changes
         if not repo_directory.exists():
             print(f"\tCloning GitHub repository for Dandiset {dandiset_id}...")
 
@@ -80,13 +96,14 @@ def run(limit: int | None = None) -> None:
         _update_draft(repo_directory=repo_directory)
 
         print(f"Converting {dandiset_id}...")
+        run_info = {"commit_hash": commit_hash, "limit": LIMIT_SESSIONS}
         dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
             dandiset_id=dandiset_id, limit=LIMIT_SESSIONS
         )
         dataset_converter.extract_metadata()
 
         print("Updating draft...")
-        _write_bids_dandiset(dataset_converter=dataset_converter, repo_directory=repo_directory)
+        _write_bids_dandiset(dataset_converter=dataset_converter, repo_directory=repo_directory, run_info=run_info)
 
         _push_changes(repo_directory=repo_directory, branch_name="draft")
 
@@ -96,7 +113,7 @@ def run(limit: int | None = None) -> None:
             _deploy_subprocess(command=f"git checkout {commit_hash}", cwd=repo_directory)
 
             print("\tUpdating commit branch...")
-            _write_bids_dandiset(dataset_converter=dataset_converter, repo_directory=repo_directory)
+            _write_bids_dandiset(dataset_converter=dataset_converter, repo_directory=repo_directory, run_info=run_info)
         _push_changes(repo_directory=repo_directory, branch_name=commit_hash)
 
         print(f"Process complete for Dandiset {dandiset_id}!\n\n")
@@ -135,7 +152,10 @@ def _deploy_subprocess(
     return result.stdout
 
 
-def _write_bids_dandiset(dataset_converter: nwb2bids.DatasetConverter, repo_directory: pathlib.Path) -> None:
+def _write_bids_dandiset(
+    dataset_converter: nwb2bids.DatasetConverter, repo_directory: pathlib.Path, run_info: dict
+) -> None:
+    run_info_file_path = repo_directory / ".run_info.json"
     raw_directory = repo_directory / "raw"
     derivatives_directory = repo_directory / "derivatives"
     inspections_directory = derivatives_directory / "inspections"
@@ -144,6 +164,7 @@ def _write_bids_dandiset(dataset_converter: nwb2bids.DatasetConverter, repo_dire
     nwb_inspection_file_path = inspections_directory / f"src-nwb-inspector_ver-{nwb_inspector_version}.txt"
     bids_validation_file_path = inspections_directory / "bids_validation.txt"
     bids_validation_json_file_path = inspections_directory / "bids_validation.json"
+    dandi_validation_file_path = inspections_directory / "dandi_validation.txt"
 
     if raw_directory.exists():
         shutil.rmtree(path=raw_directory)
@@ -153,6 +174,7 @@ def _write_bids_dandiset(dataset_converter: nwb2bids.DatasetConverter, repo_dire
     nwb2bids_inspection_file_path.unlink(missing_ok=True)
     bids_validation_file_path.unlink(missing_ok=True)
     bids_validation_json_file_path.unlink(missing_ok=True)
+
     # TODO: write dataset_description.json and README for inspections pipeline
     # TODO: write dataset_description.json and README for entire 'study'
     # QUESTION FOR YARIK: does this repo itself need to be nested under a 'study-<label>' directory?
@@ -187,6 +209,12 @@ def _write_bids_dandiset(dataset_converter: nwb2bids.DatasetConverter, repo_dire
         content = json.load(fp=file_stream)
     with bids_validation_json_file_path.open(mode="w") as file_stream:
         json.dump(obj=content, fp=file_stream, indent=2)
+
+    _deploy_subprocess(command=f"dandi validate {raw_directory} > {dandi_validation_file_path}", ignore_errors=True)
+
+    # Write last as a sign of completion
+    with run_info_file_path.open(mode="w") as file_stream:
+        json.dump(obj=run_info, fp=file_stream, indent=2)
 
 
 def _configure_git_repo(repo_directory: pathlib.Path) -> None:
