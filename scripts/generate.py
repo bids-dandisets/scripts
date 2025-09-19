@@ -5,13 +5,14 @@ import os
 import pathlib
 import shutil
 import subprocess
+import time
 
 import dandi.dandiapi
 import nwb2bids
 import requests
 
 LIMIT_SESSIONS = 10
-LIMIT_DANDISETS = None
+LIMIT_DANDISETS = 5
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", None)
 if GITHUB_TOKEN is None:
@@ -30,8 +31,19 @@ authentication_header = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 
 def run(limit: int | None = None) -> None:
-    commit_hash = _deploy_subprocess(command="git rev-parse HEAD", cwd=pathlib.Path(nwb2bids.__file__).parents[1])[:10]
-    print(f"\nnwb2bids commit hash: {commit_hash}\n\n")
+    generation_script_version_tag = _deploy_subprocess(
+        command="git describe --tags --always", cwd=pathlib.Path(__file__).parents[1]
+    ).strip()
+    print(f"\nGeneration script version: {generation_script_version_tag}\n\n")
+    nwb2bids_version_tag = _deploy_subprocess(
+        command="git describe --tags --always", cwd=pathlib.Path(nwb2bids.__file__).parents[1]
+    ).strip()
+    print(f"\nnwb2bids version: {nwb2bids_version_tag}\n\n")
+    run_info = {
+        "generation_script_version_tag": generation_script_version_tag,
+        "nwb2bids_version_tag": nwb2bids_version_tag,
+        "limit": LIMIT_SESSIONS,
+    }
 
     client = dandi.dandiapi.DandiAPIClient()
     dandisets = client.get_dandisets()
@@ -53,32 +65,24 @@ def run(limit: int | None = None) -> None:
             if response.status_code == 403:  # TODO: Not sure how to handle this yet
                 continue
 
-            print("\tCreating GitHub repository...")
-            repo_creation_url = "https://api.github.com/orgs/bids-dandisets/repos"
+            print("\tForking GitHub repository...")
+            repo_fork_url = f"https://api.github.com/repos/dandisets/{dandiset_id}/forks"
             headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
-            data = {
-                "name": dandiset_id,
-                "private": False,
-                "default_branch": "draft",
-                "auto_init": True,
-                "description": f"BIDS-formatted version of Dandiset {dandiset_id}.",
-                "has_issues": False,
-                "has_projects": False,
-                "has_wiki": False,
-            }
-            response = requests.post(url=repo_creation_url, headers=headers, json=data)
-            if response.status_code == 403:
+            data = {"organization": "bids-dandisets"}
+            response = requests.post(url=repo_fork_url, headers=headers, json=data)
+            if response.status_code != 202:
                 print(f"\tStatus code {response.status_code}: {response.json()['message']}")
                 continue
+            time.sleep(10)  # Give it some time to complete
 
         # Decide whether to skip based on hidden details of generation runs
         run_info_url = f"{raw_content_base_url}/{dandiset_id}/draft/.run_info.json"
         response = requests.get(url=run_info_url, headers=authentication_header)
         if response.status_code == 200:
             previous_run_info = response.json()
-            previous_commit_hash = previous_run_info.get("commit_hash", "")
+            previous_nwb2bids_version_tag = previous_run_info.get("nwb2bids_version", "")
             previous_session_limit = previous_run_info.get("limit", 0)
-            if commit_hash == previous_commit_hash and LIMIT_SESSIONS <= previous_session_limit:
+            if nwb2bids_version_tag == previous_nwb2bids_version_tag and LIMIT_SESSIONS <= previous_session_limit:
                 print(f"Skipping {dandiset_id} - already up to date!\n\n")
                 continue
         elif response.status_code == 403:  # TODO: Not sure how to handle this yet
@@ -96,7 +100,6 @@ def run(limit: int | None = None) -> None:
         _update_draft(repo_directory=repo_directory)
 
         print(f"Converting {dandiset_id}...")
-        run_info = {"commit_hash": commit_hash, "limit": LIMIT_SESSIONS}
         dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
             dandiset_id=dandiset_id, limit=LIMIT_SESSIONS
         )
@@ -108,13 +111,13 @@ def run(limit: int | None = None) -> None:
         _push_changes(repo_directory=repo_directory, branch_name="draft")
 
         try:
-            _deploy_subprocess(command=f"git checkout -b {commit_hash}", cwd=repo_directory)
+            _deploy_subprocess(command=f"git checkout -b {nwb2bids_version_tag}", cwd=repo_directory)
         except RuntimeError:
-            _deploy_subprocess(command=f"git checkout {commit_hash}", cwd=repo_directory)
+            _deploy_subprocess(command=f"git checkout {nwb2bids_version_tag}", cwd=repo_directory)
 
             print("\tUpdating commit branch...")
             _write_bids_dandiset(dataset_converter=dataset_converter, repo_directory=repo_directory, run_info=run_info)
-        _push_changes(repo_directory=repo_directory, branch_name=commit_hash)
+        _push_changes(repo_directory=repo_directory, branch_name=nwb2bids_version_tag)
 
         print(f"Process complete for Dandiset {dandiset_id}!\n\n")
 
@@ -156,24 +159,30 @@ def _write_bids_dandiset(
     dataset_converter: nwb2bids.DatasetConverter, repo_directory: pathlib.Path, run_info: dict
 ) -> None:
     run_info_file_path = repo_directory / ".run_info.json"
+
     raw_directory = repo_directory / "raw"
     derivatives_directory = repo_directory / "derivatives"
     inspections_directory = derivatives_directory / "inspections"
     nwb2bids_inspection_file_path = inspections_directory / "nwb2bids_inspection.json"
-    nwb_inspector_version = importlib.metadata.version(distribution_name="nwbinspector").replace(".", "-")
-    nwb_inspection_file_path = inspections_directory / f"src-nwb-inspector_ver-{nwb_inspector_version}.txt"
+    # nwb_inspector_version = importlib.metadata.version(distribution_name="nwbinspector").replace(".", "-")
+    # nwb_inspection_file_path = inspections_directory / f"src-nwb-inspector_ver-{nwb_inspector_version}.txt"
     bids_validation_file_path = inspections_directory / "bids_validation.txt"
     bids_validation_json_file_path = inspections_directory / "bids_validation.json"
     dandi_validation_file_path = inspections_directory / "dandi_validation.txt"
 
+    # Cleanup existing content from original fork or previous runs
+    current_content = [path for path in repo_directory.iterdir() if not path.name.startswith(".")]
+    for path in current_content:
+        shutil.rmtree(path=path)
     if raw_directory.exists():
         shutil.rmtree(path=raw_directory)
-    raw_directory.mkdir(exist_ok=True)
-    derivatives_directory.mkdir(exist_ok=True)
-    inspections_directory.mkdir(exist_ok=True)
     nwb2bids_inspection_file_path.unlink(missing_ok=True)
     bids_validation_file_path.unlink(missing_ok=True)
     bids_validation_json_file_path.unlink(missing_ok=True)
+
+    raw_directory.mkdir(exist_ok=True)
+    derivatives_directory.mkdir(exist_ok=True)
+    inspections_directory.mkdir(exist_ok=True)
 
     # TODO: write dataset_description.json and README for inspections pipeline
     # TODO: write dataset_description.json and README for entire 'study'
@@ -185,12 +194,12 @@ def _write_bids_dandiset(
     if len(message_dump) > 0:
         nwb2bids_inspection_file_path.write_text(data=json.dumps(obj=message_dump, indent=2))
 
-    if nwb_inspection_file_path.exists() is False:
-        dandiset_id = repo_directory.name
-        nwb_inspector_command = (
-            f"nwbinspector --report-file-path {nwb_inspection_file_path} --overwrite --stream {dandiset_id} --n-jobs -1"
-        )
-        _deploy_subprocess(command=nwb_inspector_command, ignore_errors=True)
+    # if nwb_inspection_file_path.exists() is False:
+    #     dandiset_id = repo_directory.name
+    #     nwb_inspector_command = (
+    #         f"nwbinspector --report-file-path {nwb_inspection_file_path} --overwrite --stream {dandiset_id}"
+    #     )
+    #     _deploy_subprocess(command=nwb_inspector_command, ignore_errors=True)
 
     bids_validator_command = (
         f"bids-validator-deno --ignoreNiftiHeaders --verbose --outfile {bids_validation_file_path} "
