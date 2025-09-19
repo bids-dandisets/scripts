@@ -4,9 +4,8 @@ import shutil
 import subprocess
 
 import dandi.dandiapi
-import requests
-
 import nwb2bids
+import requests
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", None)
 if GITHUB_TOKEN is None:
