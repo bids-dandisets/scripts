@@ -32,14 +32,15 @@ authentication_header = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 def run(limit: int | None = None) -> None:
     version_tag_command = "git describe --tags --always"
-    generation_script_version_tag = _deploy_subprocess(
-        command=version_tag_command, cwd=pathlib.Path(__file__).parents[1]
-    ).strip()
+
+    script_repo_path = pathlib.Path(__file__).parents[1]
+    generation_script_version_tag = _deploy_subprocess(command=version_tag_command, cwd=script_repo_path).strip()
     print(f"\nGeneration script version: {generation_script_version_tag}")
-    nwb2bids_version_tag = _deploy_subprocess(
-        command=version_tag_command, cwd=pathlib.Path(nwb2bids.__file__).parents[1]
-    ).strip()
+
+    nwb2bids_repo_path = pathlib.Path(nwb2bids.__file__).parents[1]
+    nwb2bids_version_tag = _deploy_subprocess(command=version_tag_command, cwd=nwb2bids_repo_path).strip()
     print(f"nwb2bids version: {nwb2bids_version_tag}\n\n")
+
     run_info = {
         "generation_script_version_tag": generation_script_version_tag,
         "nwb2bids_version_tag": nwb2bids_version_tag,
@@ -172,7 +173,7 @@ def _write_bids_dandiset(
     dandi_validation_file_path = inspections_directory / "dandi_validation.txt"
 
     # Cleanup existing content from original fork or previous runs
-    current_content = [path for path in repo_directory.iterdir() if not path.name.startswith(".")]
+    current_content = [path for path in repo_directory.iterdir() if not path.name.startswith(".") and path.is_dir()]
     for path in current_content:
         shutil.rmtree(path=path)
     if raw_directory.exists():
