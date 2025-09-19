@@ -43,7 +43,3 @@ fixable = ["ALL"]
 
 [tool.ruff.lint.isort]
 relative-imports-order = "closest-to-furthest"
-known-first-party = ["nwb2bids"]
-
-[tool.ruff.lint.per-file-ignores]
-"src/nwb2bids/_hidden_top_level_imports.py" = ["F401"]  # Must perform imports here even if not exposed
