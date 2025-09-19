@@ -31,14 +31,15 @@ authentication_header = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 
 def run(limit: int | None = None) -> None:
+    version_tag_command = "git describe --tags --always"
     generation_script_version_tag = _deploy_subprocess(
-        command="git describe --tags --always", cwd=pathlib.Path(__file__).parents[1]
+        command=version_tag_command, cwd=pathlib.Path(__file__).parents[1]
     ).strip()
-    print(f"\nGeneration script version: {generation_script_version_tag}\n\n")
+    print(f"\nGeneration script version: {generation_script_version_tag}")
     nwb2bids_version_tag = _deploy_subprocess(
-        command="git describe --tags --always", cwd=pathlib.Path(nwb2bids.__file__).parents[1]
+        command=version_tag_command, cwd=pathlib.Path(nwb2bids.__file__).parents[1]
     ).strip()
-    print(f"\nnwb2bids version: {nwb2bids_version_tag}\n\n")
+    print(f"nwb2bids version: {nwb2bids_version_tag}\n\n")
     run_info = {
         "generation_script_version_tag": generation_script_version_tag,
         "nwb2bids_version_tag": nwb2bids_version_tag,
