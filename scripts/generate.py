@@ -12,7 +12,7 @@ import nwb2bids
 import requests
 
 LIMIT_SESSIONS = 5
-LIMIT_DANDISETS = None
+LIMIT_DANDISETS = 3
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", None)
 if GITHUB_TOKEN is None:
@@ -172,7 +172,9 @@ def _write_bids_dandiset(
 ) -> None:
     run_info_file_path = repo_directory / ".run_info.json"
 
+    bids_ignore_file_path = repo_directory / ".bidsignore"
     derivatives_directory = repo_directory / "derivatives"
+    derivatives_dataset_description_file_path = derivatives_directory / "dataset_description.json"
     inspections_directory = derivatives_directory / "inspections"
     nwb2bids_inspection_file_path = inspections_directory / "nwb2bids_inspection.json"
     # nwb_inspector_version = importlib.metadata.version(distribution_name="nwbinspector").replace(".", "-")
@@ -195,6 +197,17 @@ def _write_bids_dandiset(
     # QUESTION FOR YARIK: does this repo itself need to be nested under a 'study-<label>' directory?
 
     dataset_converter.convert_to_bids_dataset(bids_directory=repo_directory)
+
+    # Required for BIDs validation on Dandisets
+    bids_ignore_file_path.write_text("dandiset.yaml\n")
+
+    # Required for BIDs validation on inspection derivatives
+    derivatives_dataset_description = {
+        "BIDSVersion": "1.10.0",
+        "Name": f"Inspections and Validations for BIDS-Dandiset {repo_directory.stem}",
+        "SourceDatasets": [{"URL": "../"}],
+    }
+    derivatives_dataset_description_file_path.write_text(json.dumps(obj=derivatives_dataset_description))
 
     message_dump = [message.model_dump() for message in dataset_converter.messages]
     if len(message_dump) > 0:
