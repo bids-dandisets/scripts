@@ -11,7 +11,7 @@ import dandi.dandiapi
 import nwb2bids
 import requests
 
-LIMIT_SESSIONS = 10
+LIMIT_SESSIONS = 5
 LIMIT_DANDISETS = None
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", None)
@@ -200,7 +200,7 @@ def _write_bids_dandiset(
     # TODO: write dataset_description.json and README for entire 'study'
     # QUESTION FOR YARIK: does this repo itself need to be nested under a 'study-<label>' directory?
 
-    dataset_converter.convert_to_bids_dataset(bids_directory=raw_directory)
+    dataset_converter.convert_to_bids_dataset(bids_directory=repo_directory)
 
     message_dump = [message.model_dump() for message in dataset_converter.messages]
     if len(message_dump) > 0:
