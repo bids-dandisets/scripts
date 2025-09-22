@@ -172,7 +172,6 @@ def _write_bids_dandiset(
 ) -> None:
     run_info_file_path = repo_directory / ".run_info.json"
 
-    raw_directory = repo_directory / "raw"
     derivatives_directory = repo_directory / "derivatives"
     inspections_directory = derivatives_directory / "inspections"
     nwb2bids_inspection_file_path = inspections_directory / "nwb2bids_inspection.json"
@@ -186,13 +185,8 @@ def _write_bids_dandiset(
     current_content = [path for path in repo_directory.iterdir() if not path.name.startswith(".") and path.is_dir()]
     for path in current_content:
         shutil.rmtree(path=path)
-    if raw_directory.exists():
-        shutil.rmtree(path=raw_directory)
-    nwb2bids_inspection_file_path.unlink(missing_ok=True)
-    bids_validation_file_path.unlink(missing_ok=True)
-    bids_validation_json_file_path.unlink(missing_ok=True)
-
-    raw_directory.mkdir(exist_ok=True)
+    if derivatives_directory.exists():
+        shutil.rmtree(path=derivatives_directory)
     derivatives_directory.mkdir(exist_ok=True)
     inspections_directory.mkdir(exist_ok=True)
 
@@ -216,14 +210,14 @@ def _write_bids_dandiset(
     bids_validator_command = (
         f"bids-validator-deno --ignoreNiftiHeaders --verbose --outfile {bids_validation_file_path} "
         "--schema https://raw.githubusercontent.com/bids-standard/bids-schema/enh-prs-and-beps/BEPs/32/schema.json "
-        f"{raw_directory}"
+        f"{repo_directory}"
     )
     _deploy_subprocess(command=bids_validator_command, ignore_errors=True)
 
     bids_validator_json_command = (
         f"bids-validator-deno --ignoreNiftiHeaders --verbose --json --outfile {bids_validation_json_file_path} "
         "--schema https://raw.githubusercontent.com/bids-standard/bids-schema/enh-prs-and-beps/BEPs/32/schema.json "
-        f"{raw_directory}"
+        f"{repo_directory}"
     )
     _deploy_subprocess(command=bids_validator_json_command, ignore_errors=True)
     with bids_validation_json_file_path.open(mode="r") as file_stream:
@@ -231,7 +225,7 @@ def _write_bids_dandiset(
     with bids_validation_json_file_path.open(mode="w") as file_stream:
         json.dump(obj=content, fp=file_stream, indent=2)
 
-    _deploy_subprocess(command=f"dandi validate {raw_directory} > {dandi_validation_file_path}", ignore_errors=True)
+    _deploy_subprocess(command=f"dandi validate {repo_directory} > {dandi_validation_file_path}", ignore_errors=True)
 
     # Write last as a sign of completion
     with run_info_file_path.open(mode="w") as file_stream:
