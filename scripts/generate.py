@@ -204,6 +204,7 @@ def _write_bids_dandiset(
     # Required for BIDs validation on inspection derivatives
     derivatives_dataset_description = {
         "BIDSVersion": "1.10.0",
+        "DatasetType": "derivative",
         "Name": f"Inspections and Validations for BIDS-Dandiset {repo_directory.stem}",
         "SourceDatasets": [{"URL": "../"}],
     }
