@@ -12,7 +12,7 @@ import nwb2bids
 import requests
 
 LIMIT_SESSIONS = 5
-LIMIT_DANDISETS = 3
+LIMIT_DANDISETS = None
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", None)
 if GITHUB_TOKEN is None:
@@ -31,9 +31,9 @@ authentication_header = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 
 def run(limit: int | None = None) -> None:
-    version_tag_command = "git describe --tags --always"
-
     script_repo_path = pathlib.Path(__file__).parents[1]
+
+    version_tag_command = "git describe --tags --always"
     generation_script_version_tag = _deploy_subprocess(command=version_tag_command, cwd=script_repo_path).strip()
     print(f"\nGeneration script version: {generation_script_version_tag}")
 
@@ -210,7 +210,7 @@ def _write_bids_dandiset(
     }
     derivatives_dataset_description_file_path.write_text(json.dumps(obj=derivatives_dataset_description))
 
-    message_dump = [message.model_dump() for message in dataset_converter.messages]
+    message_dump = [message.model_dump(mode="json") for message in dataset_converter.messages]
     if len(message_dump) > 0:
         nwb2bids_inspection_file_path.write_text(data=json.dumps(obj=message_dump, indent=2))
 
