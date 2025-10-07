@@ -157,3 +157,7 @@ fabric.properties
 
 # Spyder
 .spyproject/*
+
+# Internal (project-specific)
+scripts/.parallel_logs
+./parallel_logs

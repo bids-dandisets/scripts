@@ -1,3 +1,5 @@
+import collections
+import concurrent.futures
 import importlib
 import importlib.metadata
 import json
@@ -6,11 +8,19 @@ import pathlib
 import shutil
 import subprocess
 import time
+import traceback
+import warnings
 
 import dandi.dandiapi
 import nwb2bids
 import requests
 
+warnings.filterwarnings(action="ignore", category=UserWarning, message=".*Series .+: Length of .+")
+warnings.filterwarnings(action="ignore", category=UserWarning, message=".+ which is not compliant with .+")
+warnings.filterwarnings(action="ignore", category=UserWarning, message=".+ The second dimension of data .+")
+warnings.filterwarnings(action="ignore", category=UserWarning, message="Loaded namespace .+")
+
+MAX_WORKERS = None
 LIMIT_SESSIONS = None
 LIMIT_DANDISETS = None
 
@@ -25,12 +35,16 @@ if "site-packages" in importlib.util.find_spec("nwb2bids").origin:
 
 BASE_GITHUB_URL = f"https://{GITHUB_TOKEN}@github.com"
 BASE_GITHUB_API_URL = "https://api.github.com/repos"
-raw_content_base_url = "https://raw.githubusercontent.com/bids-dandisets"
+RAW_CONTENT_BASE_URL = "https://raw.githubusercontent.com/bids-dandisets"
 BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets")
-authentication_header = {"Authorization": f"token {GITHUB_TOKEN}"}
+AUTHENTICATION_HEADER = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 # Config is likely temporary to suppress the 'unknown version' because we run from BEP32 schema
-BIDS_VALIDATION_CONFIG_FILE_PATH = pathlib.Path(__file__).parent / "bids_validation_config.json"
+THIS_FILE_PATH = pathlib.Path(__file__)
+BIDS_VALIDATION_CONFIG_FILE_PATH = THIS_FILE_PATH.parent.parent / "bids_validation_config.json"
+
+PARALLEL_LOG_DIRECTORY = THIS_FILE_PATH.parent.parent / ".parallel_logs"
+PARALLEL_LOG_DIRECTORY.mkdir(exist_ok=True)
 
 
 def run(limit: int | None = None) -> None:
@@ -53,27 +67,42 @@ def run(limit: int | None = None) -> None:
     }
 
     client = dandi.dandiapi.DandiAPIClient()
-    dandisets = client.get_dandisets()
+    dandisets = list(client.get_dandisets())
+    dandisets.sort(key=lambda dandiset: int(dandiset.identifier))
 
-    for counter, dandiset in enumerate(dandisets):
-        if limit is not None and counter >= limit:
-            break
+    with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = []
 
-        dandiset_id = dandiset.identifier
-        repo_directory = BASE_DIRECTORY / dandiset_id
+        for counter, dandiset in enumerate(dandisets):
+            if limit is not None and counter >= limit:
+                break
 
+            dandiset_id = dandiset.identifier
+            repo_directory = BASE_DIRECTORY / dandiset_id
+
+            futures.append(
+                executor.submit(
+                    _convert_dandiset, dandiset_id=dandiset_id, repo_directory=repo_directory, run_info=run_info
+                )
+            )
+
+        collections.deque(concurrent.futures.as_completed(futures), maxlen=0)
+
+
+def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: dict) -> None:
+    try:
         print(f"Processing Dandiset {dandiset_id}...")
 
         repo_name = f"bids-dandisets/{dandiset_id}"
         repo_api_url = f"{BASE_GITHUB_API_URL}/{repo_name}"
-        response = requests.get(url=repo_api_url, headers=authentication_header)
+        response = requests.get(url=repo_api_url, headers=AUTHENTICATION_HEADER)
         if response.status_code != 200:
             print(f"Status code {response.status_code}: {response.json()["message"]}")
 
             if response.status_code == 403:  # TODO: Not sure how to handle this yet
-                continue
+                return
 
-            print("\tForking GitHub repository...")
+            print(f"\tForking GitHub repository for {dandiset_id} ...")
 
             repo_fork_url = f"https://api.github.com/repos/dandisets/{dandiset_id}/forks"
             headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
@@ -82,27 +111,27 @@ def run(limit: int | None = None) -> None:
             if response.status_code != 202:
                 print(f"\tStatus code {response.status_code}: {response.json()['message']}")
 
-                continue
+                return
             time.sleep(30)  # Give it some time to complete
 
         # Decide whether to skip based on hidden details of generation runs
-        run_info_url = f"{raw_content_base_url}/{dandiset_id}/draft/.run_info.json"
-        response = requests.get(url=run_info_url, headers=authentication_header)
+        run_info_url = f"{RAW_CONTENT_BASE_URL}/{dandiset_id}/draft/.nwb2bids/run_info.json"
+        response = requests.get(url=run_info_url, headers=AUTHENTICATION_HEADER)
         if response.status_code == 200:
             previous_run_info = response.json()
-            previous_generation_script_version_tag = previous_run_info.get("generation_script_version_tag", "")
-            previous_nwb2bids_version_tag = previous_run_info.get("nwb2bids_version_tag", "")
-            previous_session_limit = previous_run_info.get("limit", 0)
+            previous_generation_script_version = previous_run_info.get("generation_script_version", "")
+            previous_nwb2bids_version = previous_run_info.get("nwb2bids_version", "")
+            previous_session_limit = previous_run_info.get("limit", None) or 0
             if (
-                previous_generation_script_version_tag == generation_script_version
-                and nwb2bids_version == previous_nwb2bids_version_tag
-                and LIMIT_SESSIONS <= previous_session_limit
+                previous_generation_script_version == run_info["generation_script_version"]
+                and previous_nwb2bids_version == run_info["nwb2bids_version"]
+                and (LIMIT_SESSIONS is None or LIMIT_SESSIONS <= previous_session_limit)
             ):
                 print(f"Skipping {dandiset_id} - already up to date!\n\n")
 
-                continue
+                return
         elif response.status_code == 403:  # TODO: Not sure how to handle this yet
-            continue
+            return
 
         # Clone the repo or fetch the latest changes
         if not repo_directory.exists():
@@ -122,7 +151,7 @@ def run(limit: int | None = None) -> None:
         )
         dataset_converter.extract_metadata()
 
-        print("Updating draft...")
+        print(f"Updating draft of {dandiset_id} ...")
 
         _write_bids_dandiset(dataset_converter=dataset_converter, repo_directory=repo_directory, run_info=run_info)
         _push_changes(repo_directory=repo_directory, branch_name="draft")
@@ -140,6 +169,10 @@ def run(limit: int | None = None) -> None:
         # _push_changes(repo_directory=repo_directory, branch_name=nwb2bids_version)
 
         print(f"Process complete for Dandiset {dandiset_id}!\n\n")
+    except Exception as exception:
+        log_file_path = PARALLEL_LOG_DIRECTORY / f"{dandiset_id}.log"
+        with log_file_path.open(mode="w") as file_stream:
+            file_stream.write(f"{type(exception)}: {str(exception)}\n\n{traceback.format_exc()}")
 
 
 def _deploy_subprocess(
