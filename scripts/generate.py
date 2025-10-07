@@ -15,10 +15,14 @@ import dandi.dandiapi
 import nwb2bids
 import requests
 
-warnings.filterwarnings(action="ignore", category=UserWarning, message=".*Series .+: Length of .+")
-warnings.filterwarnings(action="ignore", category=UserWarning, message=".+ which is not compliant with .+")
-warnings.filterwarnings(action="ignore", category=UserWarning, message=".+ The second dimension of data .+")
-warnings.filterwarnings(action="ignore", category=UserWarning, message="Loaded namespace .+")
+pynwb_warnings_to_suppress = [
+    ".*Series .+: Length of .+",
+    ".+ which is not compliant with .+",
+    ".+ The second dimension of data .+",
+    "Loaded namespace .+",
+]
+for message in pynwb_warnings_to_suppress:
+    warnings.filterwarnings(action="ignore", category=UserWarning, message=message)
 
 MAX_WORKERS = None
 LIMIT_SESSIONS = None
