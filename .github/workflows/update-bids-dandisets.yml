@@ -28,5 +28,5 @@ jobs:
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: Error during update of BIDS-Dandisets
           to: cody.c.baker.phd@gmail.com  # Add more with comma separation (no spaces)
-          from: backup-status
-          body: "Please check the available disk space and backup protocols for DANDI on Engaging."
+          from: bids-dandisets
+          body: "Please check the latest run of the BIDS-Dandisets generation: https://github.com/bids-dandisets/scripts/actions/workflows/update-bids-dandisets.yml"
