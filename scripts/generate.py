@@ -22,9 +22,8 @@ pynwb_warnings_to_suppress = [
 for message in pynwb_warnings_to_suppress:
     warnings.filterwarnings(action="ignore", category=UserWarning, message=message)
 
-MAX_WORKERS = None
-LIMIT_SESSIONS = None
-LIMIT_DANDISETS = None
+LIMIT_SESSIONS = 2
+LIMIT_DANDISETS = 2
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", None)
 if GITHUB_TOKEN is None:
@@ -53,7 +52,10 @@ AUTHENTICATION_HEADER = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 # Config is likely temporary to suppress the 'unknown version' because we run from BEP32 schema
 THIS_FILE_PATH = pathlib.Path(__file__)
-BIDS_VALIDATION_CONFIG_FILE_PATH = THIS_FILE_PATH.parent.parent / "bids_validation_config.json"
+BIDS_VALIDATION_CONFIG_FILE_PATH = THIS_FILE_PATH.parent / "bids_validation_config.json"
+if not BIDS_VALIDATION_CONFIG_FILE_PATH.exists():
+    message = f"BIDS validation config file not found at {BIDS_VALIDATION_CONFIG_FILE_PATH}!"
+    raise FileNotFoundError(message)
 
 
 def run(limit: int | None = None) -> None:
