@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  _GITHUB_API_KEY: ${{ secrets._GITHUB_API_KEY }}
 
 jobs:
   UpdateBidsDandisets:

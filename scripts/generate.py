@@ -27,7 +27,7 @@ LIMIT_DANDISETS = 2
 
 GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
 if GITHUB_TOKEN is None:
-    message = "GITHUB_TOKEN environment variable not set"
+    message = "`_GITHUB_API_KEY` environment variable not set"
     raise ValueError(message)
 
 if "site-packages" in importlib.util.find_spec("nwb2bids").origin:
