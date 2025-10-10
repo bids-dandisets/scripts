@@ -23,6 +23,7 @@ jobs:
         run: pip install -e git+https://github.com/con/nwb2bids@main#egg=nwb2bids[dandi]
 
       - name: Run generation script
+        #run: python scripts/parallel_generate.py
         run: python scripts/generate.py
         env:
           SANITIZATION_LEVEL: 0
@@ -31,7 +32,7 @@ jobs:
         run: cat ./.parallel_logs/*.log || echo "No errors found in logs."
 
 #      - name: Run generation script with minimal sanitization
-#        run: python scripts/generate.py
+#        run: python scripts/parallel_generate.py
 #        env:
 #          SANITIZATION_LEVEL: 1
 

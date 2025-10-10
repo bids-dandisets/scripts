@@ -1,8 +1,6 @@
-import collections
 import os
 import pathlib
 import platform
-import shutil
 import subprocess
 
 import dandi.dandiapi
@@ -30,18 +28,12 @@ else:
 
 
 def run(limit: int | None = None) -> None:
-    super_dataset_repo_directory = BASE_DIRECTORY / "super-dataset"
-    if not super_dataset_repo_directory.exists():
+    repo_directory = BASE_DIRECTORY / "super-dataset"
+    if not repo_directory.exists():
         git_clone_command = f"git clone {BASE_GITHUB_URL}/bids-dandisets/super-dataset.git"
         _deploy_subprocess(command=git_clone_command, cwd=BASE_DIRECTORY)
 
-    _update_draft(repo_directory=super_dataset_repo_directory)
-
-    # Start from clean slate
-    submodule_directories = [
-        path for path in super_dataset_repo_directory.iterdir() if path.is_dir() and not path.name.startswith(".")
-    ]
-    collections.deque((shutil.rmtree(path) for path in submodule_directories), maxlen=0)
+    _update_draft(repo_directory=repo_directory)
 
     client = dandi.dandiapi.DandiAPIClient()
     dandisets = client.get_dandisets()
@@ -63,13 +55,20 @@ def run(limit: int | None = None) -> None:
             if response.status_code == 403:  # TODO: Not sure how to handle this yet
                 continue
 
-        datalad_command = f"datalad install https://github.com/{repo_name}"
-        _deploy_subprocess(command=datalad_command, cwd=super_dataset_repo_directory)
+        # NOTE: would not let me name '{dandiset_id}' due to conflict with dandisets/{dandiset_id}
+        submodule_path = repo_directory / "bids-dandiset_id"
+        if not submodule_path.exists():
+            _deploy_subprocess(
+                command=f"git submodule add https://github.com/bids-dandisets/{dandiset_id} bids-{dandiset_id}",
+                cwd=repo_directory,
+            )
+        else:
+            _deploy_subprocess(command="git submodule update", cwd=submodule_path)
 
         print(f"Process complete for Dandiset {dandiset_id}!\n\n")
 
-    _configure_git_repo(repo_directory=super_dataset_repo_directory)
-    _push_changes(repo_directory=super_dataset_repo_directory, branch_name="latest")
+    _configure_git_repo(repo_directory=repo_directory)
+    _push_changes(repo_directory=repo_directory)
 
 
 def _deploy_subprocess(
@@ -117,12 +116,10 @@ def _update_draft(repo_directory: pathlib.Path) -> None:
     _deploy_subprocess(command="git pull", cwd=repo_directory)
 
 
-def _push_changes(repo_directory: pathlib.Path, branch_name: str) -> None:
+def _push_changes(repo_directory: pathlib.Path, datalad_dataset_directory: pathlib.Path) -> None:
     _deploy_subprocess(command="git add .", cwd=repo_directory)
     _deploy_subprocess(command='git commit --message "update"', cwd=repo_directory, ignore_errors=True)
-
-    push_command = "git push" if branch_name == "latest" else f"git push --set-upstream origin {branch_name}"
-    _deploy_subprocess(command=push_command, cwd=repo_directory)
+    _deploy_subprocess(command="git push", cwd=repo_directory)
 
 
 if __name__ == "__main__":

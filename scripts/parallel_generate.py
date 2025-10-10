@@ -1,3 +1,5 @@
+import collections
+import concurrent.futures
 import importlib
 import importlib.metadata
 import json
@@ -83,14 +85,23 @@ def run(limit: int | None = None) -> None:
     dandisets = list(client.get_dandisets())
     dandisets.sort(key=lambda dandiset: int(dandiset.identifier))
 
-    for counter, dandiset in enumerate(dandisets):
-        if limit is not None and counter >= limit:
-            break
+    with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = []
 
-        dandiset_id = dandiset.identifier
-        repo_directory = BASE_DIRECTORY / dandiset_id
+        for counter, dandiset in enumerate(dandisets):
+            if limit is not None and counter >= limit:
+                break
 
-        _convert_dandiset(dandiset_id=dandiset_id, repo_directory=repo_directory, run_info=run_info)
+            dandiset_id = dandiset.identifier
+            repo_directory = BASE_DIRECTORY / dandiset_id
+
+            futures.append(
+                executor.submit(
+                    _convert_dandiset, dandiset_id=dandiset_id, repo_directory=repo_directory, run_info=run_info
+                )
+            )
+
+        collections.deque(concurrent.futures.as_completed(futures), maxlen=0)
 
 
 def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: dict) -> None:
