@@ -6,7 +6,7 @@ import subprocess
 import dandi.dandiapi
 import requests
 
-LIMIT_DANDISETS = 5
+LIMIT_DANDISETS = None
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", None)
 if GITHUB_TOKEN is None:
@@ -56,7 +56,7 @@ def run(limit: int | None = None) -> None:
                 continue
 
         # NOTE: would not let me name '{dandiset_id}' due to conflict with dandisets/{dandiset_id}
-        submodule_path = repo_directory / "bids-dandiset_id"
+        submodule_path = repo_directory / f"bids-{dandiset_id}"
         if not submodule_path.exists():
             _deploy_subprocess(
                 command=f"git submodule add https://github.com/bids-dandisets/{dandiset_id} bids-{dandiset_id}",
@@ -116,7 +116,7 @@ def _update_draft(repo_directory: pathlib.Path) -> None:
     _deploy_subprocess(command="git pull", cwd=repo_directory)
 
 
-def _push_changes(repo_directory: pathlib.Path, datalad_dataset_directory: pathlib.Path) -> None:
+def _push_changes(repo_directory: pathlib.Path) -> None:
     _deploy_subprocess(command="git add .", cwd=repo_directory)
     _deploy_subprocess(command='git commit --message "update"', cwd=repo_directory, ignore_errors=True)
     _deploy_subprocess(command="git push", cwd=repo_directory)
