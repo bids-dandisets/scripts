@@ -20,9 +20,7 @@ jobs:
           python-version: 3.13
 
       - name: Install package
-        run: |
-          pip install -e git+https://github.com/con/nwb2bids@main#egg=nwb2bids[dandi]
-          pip install bids-validator-deno
+        run: pip install -e git+https://github.com/con/nwb2bids@main#egg=nwb2bids[dandi]
 
       - name: Run generation script
         #run: python scripts/parallel_generate.py
