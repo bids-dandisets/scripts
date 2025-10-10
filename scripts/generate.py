@@ -25,7 +25,7 @@ for message in pynwb_warnings_to_suppress:
 LIMIT_SESSIONS = 2
 LIMIT_DANDISETS = 2
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", None)
+GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
 if GITHUB_TOKEN is None:
     message = "GITHUB_TOKEN environment variable not set"
     raise ValueError(message)
