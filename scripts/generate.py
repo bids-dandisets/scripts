@@ -261,9 +261,7 @@ def _write_bids_dandiset(
         f"--config {BIDS_VALIDATION_CONFIG_FILE_PATH} "
         f"{repo_directory}"
     )
-    _deploy_subprocess(
-        command=bids_validator_command
-    )  # , ignore_errors=True)  # Annoyingly always returns 1 on warnings
+    _deploy_subprocess(command=bids_validator_command, ignore_errors=True)  # Annoyingly always returns 1 on warnings
 
     bids_validator_json_command = (
         f"bids-validator-deno --ignoreNiftiHeaders --verbose --json --outfile {bids_validation_json_file_path} "
@@ -271,7 +269,7 @@ def _write_bids_dandiset(
         f"--config {BIDS_VALIDATION_CONFIG_FILE_PATH} "
         f"{repo_directory}"
     )
-    _deploy_subprocess(command=bids_validator_json_command)  # , ignore_errors=True)
+    _deploy_subprocess(command=bids_validator_json_command, ignore_errors=True)
 
     with bids_validation_json_file_path.open(mode="r") as file_stream:
         content = json.load(fp=file_stream)
