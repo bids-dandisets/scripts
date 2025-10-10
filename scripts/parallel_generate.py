@@ -29,9 +29,9 @@ MAX_WORKERS = None
 LIMIT_SESSIONS = None
 LIMIT_DANDISETS = None
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", None)
+GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
 if GITHUB_TOKEN is None:
-    message = "GITHUB_TOKEN environment variable not set"
+    message = "`_GITHUB_API_KEY` environment variable not set"
     raise ValueError(message)
 
 if "site-packages" in importlib.util.find_spec("nwb2bids").origin:
@@ -56,7 +56,10 @@ AUTHENTICATION_HEADER = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 # Config is likely temporary to suppress the 'unknown version' because we run from BEP32 schema
 THIS_FILE_PATH = pathlib.Path(__file__)
-BIDS_VALIDATION_CONFIG_FILE_PATH = THIS_FILE_PATH.parent.parent / "bids_validation_config.json"
+BIDS_VALIDATION_CONFIG_FILE_PATH = THIS_FILE_PATH.parent / "bids_validation_config.json"
+if not BIDS_VALIDATION_CONFIG_FILE_PATH.exists():
+    message = f"BIDS validation config file not found at {BIDS_VALIDATION_CONFIG_FILE_PATH}!"
+    raise FileNotFoundError(message)
 
 PARALLEL_LOG_DIRECTORY = THIS_FILE_PATH.parent.parent / ".parallel_logs"
 PARALLEL_LOG_DIRECTORY.mkdir(exist_ok=True)
