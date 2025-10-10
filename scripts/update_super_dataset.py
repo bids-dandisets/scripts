@@ -55,6 +55,8 @@ def run(limit: int | None = None) -> None:
             if response.status_code == 403:  # TODO: Not sure how to handle this yet
                 continue
 
+            continue
+
         # NOTE: would not let me name '{dandiset_id}' due to conflict with dandisets/{dandiset_id}
         submodule_path = repo_directory / f"bids-{dandiset_id}"
         if not submodule_path.exists():
