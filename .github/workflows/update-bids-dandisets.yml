@@ -2,7 +2,7 @@ name: Update BIDS Dandisets
 
 on:
   schedule:
-    - cron: "0 12 * * *"  # noon EST
+    - cron: "0 */4 * * *"  # every 4 hours
   workflow_dispatch:
 
 concurrency:
@@ -27,13 +27,13 @@ jobs:
         run: pip install -e git+https://github.com/con/nwb2bids@main#egg=nwb2bids[dandi]
 
       - name: Run generation script
-#        run: python scripts/parallel_generate.py
-        run: python scripts/generate.py
+        run: python scripts/parallel_generate.py
+#        run: python scripts/generate.py
         env:
           SANITIZATION_LEVEL: 0
 
-#      - name: Printout all errors from parallel logs
-#        run: cat ./.parallel_logs/*.log || echo "No errors found in logs."
+      - name: Printout all errors from parallel logs
+        run: cat ./.parallel_logs/*.log || echo "No errors found in logs."
 
 #      - name: Run generation script with minimal sanitization
 #        run: python scripts/parallel_generate.py

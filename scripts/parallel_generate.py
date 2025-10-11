@@ -25,9 +25,9 @@ pynwb_warnings_to_suppress = [
 for message in pynwb_warnings_to_suppress:
     warnings.filterwarnings(action="ignore", category=UserWarning, message=message)
 
-MAX_WORKERS = None
+MAX_WORKERS = 2  # GitHub runners don't really have the RAM for more than 2 it seems
 LIMIT_SESSIONS = None
-LIMIT_DANDISETS = None
+LIMIT_DANDISETS = 10
 
 GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
 if GITHUB_TOKEN is None:
@@ -66,18 +66,12 @@ PARALLEL_LOG_DIRECTORY.mkdir(exist_ok=True)
 
 
 def run(limit: int | None = None) -> None:
-    script_repo_path = pathlib.Path(__file__).parents[1]
-
     version_tag_command = "git describe --tags --always"
-    generation_script_version = _deploy_subprocess(command=version_tag_command, cwd=script_repo_path).strip()
-    print(f"\nGeneration script version: {generation_script_version}")
-
     nwb2bids_repo_path = pathlib.Path(nwb2bids.__file__).parents[1]
     nwb2bids_version = _deploy_subprocess(command=version_tag_command, cwd=nwb2bids_repo_path).strip()
     print(f"nwb2bids version: {nwb2bids_version}\n\n")
 
     run_info = {
-        "generation_script_version": generation_script_version,
         "nwb2bids_version": nwb2bids_version,
         "limit": LIMIT_SESSIONS,
         "sessions_converted": None,
@@ -137,13 +131,10 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
         response = requests.get(url=run_info_url, headers=AUTHENTICATION_HEADER)
         if response.status_code == 200:
             previous_run_info = response.json()
-            previous_generation_script_version = previous_run_info.get("generation_script_version", "")
             previous_nwb2bids_version = previous_run_info.get("nwb2bids_version", "")
             previous_session_limit = previous_run_info.get("limit", None) or 0
-            if (
-                previous_generation_script_version == run_info["generation_script_version"]
-                and previous_nwb2bids_version == run_info["nwb2bids_version"]
-                and (LIMIT_SESSIONS is None or LIMIT_SESSIONS <= previous_session_limit)
+            if previous_nwb2bids_version == run_info["nwb2bids_version"] and (
+                LIMIT_SESSIONS is None or LIMIT_SESSIONS <= previous_session_limit
             ):
                 print(f"Skipping {dandiset_id} - already up to date!\n\n")
 
