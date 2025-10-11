@@ -76,6 +76,7 @@ def run(limit: int | None = None) -> None:
 
     counter = 0
     for dandiset in dandisets:
+        print(counter)
         if limit is not None and counter >= limit:
             break
 
@@ -112,9 +113,8 @@ def run(limit: int | None = None) -> None:
             previous_run_info = response.json()
             previous_nwb2bids_version = previous_run_info.get("nwb2bids_version", "")
             previous_session_limit = previous_run_info.get("limit", None) or 0
-            if previous_nwb2bids_version == run_info["nwb2bids_version"] and (
-                LIMIT_SESSIONS is None or LIMIT_SESSIONS <= previous_session_limit
-            ):
+            session_limit_less_than_previous = LIMIT_SESSIONS is None or LIMIT_SESSIONS <= previous_session_limit
+            if previous_nwb2bids_version == run_info["nwb2bids_version"] and session_limit_less_than_previous:
                 print(f"Skipping {dandiset_id} - already up to date!\n\n")
 
                 continue
