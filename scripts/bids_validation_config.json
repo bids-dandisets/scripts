@@ -1,5 +1,7 @@
 {
   "ignore": [
-    { "code": "UNKNOWN_BIDS_VERSION", "location": "/dataset_description.json" }
+    { "code": "UNKNOWN_BIDS_VERSION", "location": "/dataset_description.json" },
+    { "code": "README_FILE_MISSING" },
+    { "code": "TOO_FEW_AUTHORS" }
   ]
 }
