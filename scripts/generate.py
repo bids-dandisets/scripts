@@ -59,18 +59,11 @@ if not BIDS_VALIDATION_CONFIG_FILE_PATH.exists():
 
 
 def run(limit: int | None = None) -> None:
-    script_repo_path = pathlib.Path(__file__).parents[1]
-
-    version_tag_command = "git describe --tags --always"
-    generation_script_version = _deploy_subprocess(command=version_tag_command, cwd=script_repo_path).strip()
-    print(f"\nGeneration script version: {generation_script_version}")
-
     nwb2bids_repo_path = pathlib.Path(nwb2bids.__file__).parents[1]
-    nwb2bids_version = _deploy_subprocess(command=version_tag_command, cwd=nwb2bids_repo_path).strip()
+    nwb2bids_version = _deploy_subprocess(command="git describe --tags --always", cwd=nwb2bids_repo_path).strip()
     print(f"nwb2bids version: {nwb2bids_version}\n\n")
 
     run_info = {
-        "generation_script_version": generation_script_version,
         "nwb2bids_version": nwb2bids_version,
         "limit": LIMIT_SESSIONS,
         "sessions_converted": None,
@@ -81,93 +74,90 @@ def run(limit: int | None = None) -> None:
     dandisets = list(client.get_dandisets())
     dandisets.sort(key=lambda dandiset: int(dandiset.identifier))
 
-    for counter, dandiset in enumerate(dandisets):
+    counter = 0
+    for dandiset in dandisets:
         if limit is not None and counter >= limit:
             break
 
         dandiset_id = dandiset.identifier
         repo_directory = BASE_DIRECTORY / dandiset_id
 
-        _convert_dandiset(dandiset_id=dandiset_id, repo_directory=repo_directory, run_info=run_info)
+        print(f"Processing Dandiset {dandiset_id}...")
 
+        repo_name = f"bids-dandisets/{dandiset_id}"
+        repo_api_url = f"{BASE_GITHUB_API_URL}/{repo_name}"
+        response = requests.get(url=repo_api_url, headers=AUTHENTICATION_HEADER)
+        if response.status_code != 200:
+            print(f"Status code {response.status_code}: {response.json()["message"]}")
 
-def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: dict) -> None:
-    print(f"Processing Dandiset {dandiset_id}...")
+            if response.status_code == 403:
+                return
 
-    repo_name = f"bids-dandisets/{dandiset_id}"
-    repo_api_url = f"{BASE_GITHUB_API_URL}/{repo_name}"
-    response = requests.get(url=repo_api_url, headers=AUTHENTICATION_HEADER)
-    if response.status_code != 200:
-        print(f"Status code {response.status_code}: {response.json()["message"]}")
+            print(f"\tForking GitHub repository for {dandiset_id} ...")
 
-        if response.status_code == 403:  # TODO: Not sure how to handle this yet
+            repo_fork_url = f"https://api.github.com/repos/dandisets/{dandiset_id}/forks"
+            headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
+            data = {"organization": "bids-dandisets"}
+            response = requests.post(url=repo_fork_url, headers=headers, json=data)
+            if response.status_code != 202:
+                print(f"\tStatus code {response.status_code}: {response.json()['message']}")
+
+                return
+            time.sleep(30)  # Give it some time to complete
+
+        # Decide whether to skip based on hidden details of generation runs
+        run_info_url = f"{RAW_CONTENT_BASE_URL}/{dandiset_id}/draft/.nwb2bids/run_info.json"
+        response = requests.get(url=run_info_url, headers=AUTHENTICATION_HEADER)
+        if response.status_code == 200:
+            previous_run_info = response.json()
+            previous_nwb2bids_version = previous_run_info.get("nwb2bids_version", "")
+            previous_session_limit = previous_run_info.get("limit", None) or 0
+            if previous_nwb2bids_version == run_info["nwb2bids_version"] and (
+                LIMIT_SESSIONS is None or LIMIT_SESSIONS <= previous_session_limit
+            ):
+                print(f"Skipping {dandiset_id} - already up to date!\n\n")
+
+                return
+        elif response.status_code == 403:
             return
 
-        print(f"\tForking GitHub repository for {dandiset_id} ...")
+        # Clone the repo or fetch the latest changes
+        if not repo_directory.exists():
+            print(f"\tCloning GitHub repository for Dandiset {dandiset_id}...")
 
-        repo_fork_url = f"https://api.github.com/repos/dandisets/{dandiset_id}/forks"
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
-        data = {"organization": "bids-dandisets"}
-        response = requests.post(url=repo_fork_url, headers=headers, json=data)
-        if response.status_code != 202:
-            print(f"\tStatus code {response.status_code}: {response.json()['message']}")
+            repo_url = f"{BASE_GITHUB_URL}/{repo_name}"
+            _deploy_subprocess(command=f"git clone {repo_url}", cwd=BASE_DIRECTORY)
+        else:
+            _deploy_subprocess(command="git fetch", cwd=repo_directory)
+        _configure_git_repo(repo_directory=repo_directory)
+        _update_draft(repo_directory=repo_directory)
 
-            return
-        time.sleep(30)  # Give it some time to complete
+        print(f"Converting {dandiset_id}...")
 
-    # Decide whether to skip based on hidden details of generation runs
-    run_info_url = f"{RAW_CONTENT_BASE_URL}/{dandiset_id}/draft/.nwb2bids/run_info.json"
-    response = requests.get(url=run_info_url, headers=AUTHENTICATION_HEADER)
-    if response.status_code == 200:
-        previous_run_info = response.json()
-        previous_generation_script_version = previous_run_info.get("generation_script_version", "")
-        previous_nwb2bids_version = previous_run_info.get("nwb2bids_version", "")
-        previous_session_limit = previous_run_info.get("limit", None) or 0
-        if (
-            previous_generation_script_version == run_info["generation_script_version"]
-            and previous_nwb2bids_version == run_info["nwb2bids_version"]
-            and (LIMIT_SESSIONS is None or LIMIT_SESSIONS <= previous_session_limit)
-        ):
-            print(f"Skipping {dandiset_id} - already up to date!\n\n")
+        dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
+            dandiset_id=dandiset_id, limit=LIMIT_SESSIONS
+        )
+        dataset_converter.extract_metadata()
 
-            return
-    elif response.status_code == 403:  # TODO: Not sure how to handle this yet
-        return
+        print(f"Updating draft of {dandiset_id} ...")
 
-    # Clone the repo or fetch the latest changes
-    if not repo_directory.exists():
-        print(f"\tCloning GitHub repository for Dandiset {dandiset_id}...")
+        _write_bids_dandiset(dataset_converter=dataset_converter, repo_directory=repo_directory, run_info=run_info)
+        _push_changes(repo_directory=repo_directory, branch_name="draft")
 
-        repo_url = f"{BASE_GITHUB_URL}/{repo_name}"
-        _deploy_subprocess(command=f"git clone {repo_url}", cwd=BASE_DIRECTORY)
-    else:
-        _deploy_subprocess(command="git fetch", cwd=repo_directory)
-    _configure_git_repo(repo_directory=repo_directory)
-    _update_draft(repo_directory=repo_directory)
+        # TODO: only make other branches for config options like sanitization
+        # try:
+        #     _deploy_subprocess(command=f"git checkout -b {nwb2bids_version}", cwd=repo_directory)
+        # except RuntimeError:
+        #     _deploy_subprocess(command=f"git checkout {nwb2bids_version}", cwd=repo_directory)
+        #
+        #     print("\tUpdating commit branch...")
+        #     _write_bids_dandiset(
+        #         dataset_converter=dataset_converter, repo_directory=repo_directory, run_info=run_info
+        #     )
+        # _push_changes(repo_directory=repo_directory, branch_name=nwb2bids_version)
 
-    print(f"Converting {dandiset_id}...")
-
-    dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(dandiset_id=dandiset_id, limit=LIMIT_SESSIONS)
-    dataset_converter.extract_metadata()
-
-    print(f"Updating draft of {dandiset_id} ...")
-
-    _write_bids_dandiset(dataset_converter=dataset_converter, repo_directory=repo_directory, run_info=run_info)
-    _push_changes(repo_directory=repo_directory, branch_name="draft")
-
-    # TODO: only make other branches for config options like sanitization
-    # try:
-    #     _deploy_subprocess(command=f"git checkout -b {nwb2bids_version}", cwd=repo_directory)
-    # except RuntimeError:
-    #     _deploy_subprocess(command=f"git checkout {nwb2bids_version}", cwd=repo_directory)
-    #
-    #     print("\tUpdating commit branch...")
-    #     _write_bids_dandiset(
-    #         dataset_converter=dataset_converter, repo_directory=repo_directory, run_info=run_info
-    #     )
-    # _push_changes(repo_directory=repo_directory, branch_name=nwb2bids_version)
-
-    print(f"Process complete for Dandiset {dandiset_id}!\n\n")
+        print(f"Process complete for Dandiset {dandiset_id}!\n\n")
+        counter += 1
 
 
 def _deploy_subprocess(
