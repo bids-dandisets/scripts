@@ -76,7 +76,6 @@ def run(limit: int | None = None) -> None:
 
     counter = 0
     for dandiset in dandisets:
-        print(counter)
         if limit is not None and counter >= limit:
             break
 
