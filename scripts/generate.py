@@ -91,7 +91,7 @@ def run(limit: int | None = None) -> None:
             print(f"Status code {response.status_code}: {response.json()["message"]}")
 
             if response.status_code == 403:
-                return
+                continue
 
             print(f"\tForking GitHub repository for {dandiset_id} ...")
 
@@ -102,7 +102,7 @@ def run(limit: int | None = None) -> None:
             if response.status_code != 202:
                 print(f"\tStatus code {response.status_code}: {response.json()['message']}")
 
-                return
+                continue
             time.sleep(30)  # Give it some time to complete
 
         # Decide whether to skip based on hidden details of generation runs
@@ -117,9 +117,9 @@ def run(limit: int | None = None) -> None:
             ):
                 print(f"Skipping {dandiset_id} - already up to date!\n\n")
 
-                return
+                continue
         elif response.status_code == 403:
-            return
+            continue
 
         # Clone the repo or fetch the latest changes
         if not repo_directory.exists():
