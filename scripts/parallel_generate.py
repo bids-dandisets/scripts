@@ -25,9 +25,9 @@ pynwb_warnings_to_suppress = [
 for message in pynwb_warnings_to_suppress:
     warnings.filterwarnings(action="ignore", category=UserWarning, message=message)
 
-MAX_WORKERS = 2  # GitHub runners don't really have the RAM for more than 2 it seems
+MAX_WORKERS = None
 LIMIT_SESSIONS = None
-LIMIT_DANDISETS = 10
+LIMIT_DANDISETS = 50
 
 GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
 if GITHUB_TOKEN is None:
