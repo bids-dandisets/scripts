@@ -26,7 +26,7 @@ for message in pynwb_warnings_to_suppress:
     warnings.filterwarnings(action="ignore", category=UserWarning, message=message)
 
 MAX_WORKERS = None
-LIMIT_SESSIONS = None
+LIMIT_SESSIONS = os.getenv("LIMIT_SESSIONS", None)
 LIMIT_DANDISETS = 50
 
 GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
