@@ -5,7 +5,6 @@ import importlib.metadata
 import json
 import os
 import pathlib
-import platform
 import shutil
 import subprocess
 import time
@@ -27,7 +26,7 @@ for message in pynwb_warnings_to_suppress:
 
 MAX_WORKERS = None
 LIMIT_SESSIONS = os.getenv("LIMIT_SESSIONS", None)
-LIMIT_DANDISETS = 50
+LIMIT_DANDISETS = None
 
 GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
 if GITHUB_TOKEN is None:
@@ -42,14 +41,8 @@ BASE_GITHUB_URL = f"https://{GITHUB_TOKEN}@github.com"
 BASE_GITHUB_API_URL = "https://api.github.com/repos"
 RAW_CONTENT_BASE_URL = "https://raw.githubusercontent.com/bids-dandisets"
 
-SYSTEM = platform.system()
-if SYSTEM == "Windows":
-    # For Cody's local running
-    BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets")
-else:
-    # For CI
-    BASE_DIRECTORY = pathlib.Path.cwd() / "bids-dandisets"
-    BASE_DIRECTORY.mkdir(exist_ok=True)
+BASE_DIRECTORY = pathlib.Path("/data/dandi/bids-dandisets/work")
+BASE_DIRECTORY.mkdir(exist_ok=True)
 
 
 AUTHENTICATION_HEADER = {"Authorization": f"token {GITHUB_TOKEN}"}
@@ -61,7 +54,7 @@ if not BIDS_VALIDATION_CONFIG_FILE_PATH.exists():
     message = f"BIDS validation config file not found at {BIDS_VALIDATION_CONFIG_FILE_PATH}!"
     raise FileNotFoundError(message)
 
-PARALLEL_LOG_DIRECTORY = THIS_FILE_PATH.parent.parent / ".parallel_logs"
+PARALLEL_LOG_DIRECTORY = BASE_DIRECTORY / ".parallel_logs"
 PARALLEL_LOG_DIRECTORY.mkdir(exist_ok=True)
 
 
