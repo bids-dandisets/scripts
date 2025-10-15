@@ -7,7 +7,7 @@ cd /data/dandi/bids-dandisets/scripts
 git pull
 cd /data/dandi/bids-dandisets/nwb2bids
 git pull
-python /data/dandi/bids-dandisets/scripts/scripts/parallel_generate.py
+python /data/dandi/bids-dandisets/scripts/scripts/generate.py
 
 # with `crontab -e`
 # 0 18 * * * flock -n /data/dandi/bids-dandisets/work/cron.lock bash -lc '/data/dandi/bids-dandisets/scripts/typhon_cron.sh' > /data/dandi/bids-dandisets/work/cron.log 2>&1

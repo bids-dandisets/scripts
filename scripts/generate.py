@@ -1,12 +1,14 @@
+import collections
+import concurrent.futures
 import importlib
 import importlib.metadata
 import json
 import os
 import pathlib
-import platform
 import shutil
 import subprocess
 import time
+import traceback
 import warnings
 
 import dandi.dandiapi
@@ -22,8 +24,9 @@ pynwb_warnings_to_suppress = [
 for message in pynwb_warnings_to_suppress:
     warnings.filterwarnings(action="ignore", category=UserWarning, message=message)
 
-LIMIT_SESSIONS = 5
-LIMIT_DANDISETS = 30
+MAX_WORKERS = None
+LIMIT_SESSIONS = os.getenv("LIMIT_SESSIONS", None)
+LIMIT_DANDISETS = None
 
 GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
 if GITHUB_TOKEN is None:
@@ -38,15 +41,8 @@ BASE_GITHUB_URL = f"https://{GITHUB_TOKEN}@github.com"
 BASE_GITHUB_API_URL = "https://api.github.com/repos"
 RAW_CONTENT_BASE_URL = "https://raw.githubusercontent.com/bids-dandisets"
 
-SYSTEM = platform.system()
-if SYSTEM == "Windows":
-    # For Cody's local running
-    BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets")
-else:
-    # For CI
-    BASE_DIRECTORY = pathlib.Path.cwd() / "bids-dandisets"
-    BASE_DIRECTORY.mkdir(exist_ok=True)
-
+BASE_DIRECTORY = pathlib.Path("/data/dandi/bids-dandisets/work")
+BASE_DIRECTORY.mkdir(exist_ok=True)
 
 AUTHENTICATION_HEADER = {"Authorization": f"token {GITHUB_TOKEN}"}
 
@@ -57,10 +53,14 @@ if not BIDS_VALIDATION_CONFIG_FILE_PATH.exists():
     message = f"BIDS validation config file not found at {BIDS_VALIDATION_CONFIG_FILE_PATH}!"
     raise FileNotFoundError(message)
 
+PARALLEL_LOG_DIRECTORY = BASE_DIRECTORY / ".parallel_logs"
+PARALLEL_LOG_DIRECTORY.mkdir(exist_ok=True)
+
 
 def run(limit: int | None = None) -> None:
+    version_tag_command = "git describe --tags --always"
     nwb2bids_repo_path = pathlib.Path(nwb2bids.__file__).parents[1]
-    nwb2bids_version = _deploy_subprocess(command="git describe --tags --always", cwd=nwb2bids_repo_path).strip()
+    nwb2bids_version = _deploy_subprocess(command=version_tag_command, cwd=nwb2bids_repo_path).strip()
     print(f"nwb2bids version: {nwb2bids_version}\n\n")
 
     run_info = {
@@ -74,14 +74,37 @@ def run(limit: int | None = None) -> None:
     dandisets = list(client.get_dandisets())
     dandisets.sort(key=lambda dandiset: int(dandiset.identifier))
 
-    counter = 0
-    for dandiset in dandisets:
-        if limit is not None and counter >= limit:
-            break
+    if MAX_WORKERS is None or MAX_WORKERS != 0:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = []
 
-        dandiset_id = dandiset.identifier
-        repo_directory = BASE_DIRECTORY / dandiset_id
+            for counter, dandiset in enumerate(dandisets):
+                if limit is not None and counter >= limit:
+                    break
 
+                dandiset_id = dandiset.identifier
+                repo_directory = BASE_DIRECTORY / dandiset_id
+
+                futures.append(
+                    executor.submit(
+                        _convert_dandiset, dandiset_id=dandiset_id, repo_directory=repo_directory, run_info=run_info
+                    )
+                )
+
+            collections.deque(concurrent.futures.as_completed(futures), maxlen=0)
+    elif MAX_WORKERS == 0:
+        for counter, dandiset in enumerate(dandisets):
+            if limit is not None and counter >= limit:
+                break
+
+            dandiset_id = dandiset.identifier
+            repo_directory = BASE_DIRECTORY / dandiset_id
+
+            _convert_dandiset(dandiset_id=dandiset_id, repo_directory=repo_directory, run_info=run_info)
+
+
+def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: dict) -> None:
+    try:
         print(f"Processing Dandiset {dandiset_id}...")
 
         repo_name = f"bids-dandisets/{dandiset_id}"
@@ -90,8 +113,8 @@ def run(limit: int | None = None) -> None:
         if response.status_code != 200:
             print(f"Status code {response.status_code}: {response.json()["message"]}")
 
-            if response.status_code == 403:
-                continue
+            if response.status_code == 403:  # TODO: Not sure how to handle this yet
+                return
 
             print(f"\tForking GitHub repository for {dandiset_id} ...")
 
@@ -102,7 +125,7 @@ def run(limit: int | None = None) -> None:
             if response.status_code != 202:
                 print(f"\tStatus code {response.status_code}: {response.json()['message']}")
 
-                continue
+                return
             time.sleep(30)  # Give it some time to complete
 
         # Decide whether to skip based on hidden details of generation runs
@@ -112,13 +135,14 @@ def run(limit: int | None = None) -> None:
             previous_run_info = response.json()
             previous_nwb2bids_version = previous_run_info.get("nwb2bids_version", "")
             previous_session_limit = previous_run_info.get("limit", None) or 0
-            session_limit_less_than_previous = LIMIT_SESSIONS is None or LIMIT_SESSIONS <= previous_session_limit
-            if previous_nwb2bids_version == run_info["nwb2bids_version"] and session_limit_less_than_previous:
+            if previous_nwb2bids_version == run_info["nwb2bids_version"] and (
+                LIMIT_SESSIONS is None or LIMIT_SESSIONS <= previous_session_limit
+            ):
                 print(f"Skipping {dandiset_id} - already up to date!\n\n")
 
-                continue
-        elif response.status_code == 403:
-            continue
+                return
+        elif response.status_code == 403:  # TODO: Not sure how to handle this yet
+            return
 
         # Clone the repo or fetch the latest changes
         if not repo_directory.exists():
@@ -156,7 +180,10 @@ def run(limit: int | None = None) -> None:
         # _push_changes(repo_directory=repo_directory, branch_name=nwb2bids_version)
 
         print(f"Process complete for Dandiset {dandiset_id}!\n\n")
-        counter += 1
+    except Exception as exception:
+        log_file_path = PARALLEL_LOG_DIRECTORY / f"{dandiset_id}.log"
+        with log_file_path.open(mode="w") as file_stream:
+            file_stream.write(f"{type(exception)}: {str(exception)}\n\n{traceback.format_exc()}")
 
 
 def _deploy_subprocess(
