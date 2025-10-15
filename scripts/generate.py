@@ -24,9 +24,9 @@ pynwb_warnings_to_suppress = [
 for message in pynwb_warnings_to_suppress:
     warnings.filterwarnings(action="ignore", category=UserWarning, message=message)
 
-# MAX_WORKERS = None
-MAX_WORKERS = 1
-LIMIT_SESSIONS = os.getenv("LIMIT_SESSIONS", None)
+MAX_WORKERS = None
+# MAX_WORKERS = 1
+LIMIT_SESSIONS = None
 LIMIT_DANDISETS = None
 
 GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
@@ -42,8 +42,8 @@ BASE_GITHUB_URL = f"https://{GITHUB_TOKEN}@github.com"
 BASE_GITHUB_API_URL = "https://api.github.com/repos"
 RAW_CONTENT_BASE_URL = "https://raw.githubusercontent.com/bids-dandisets"
 
-# BASE_DIRECTORY = pathlib.Path("/data/dandi/bids-dandisets/work")
-BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
+BASE_DIRECTORY = pathlib.Path("/data/dandi/bids-dandisets/work")
+# BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
 BASE_DIRECTORY.mkdir(exist_ok=True)
 
 AUTHENTICATION_HEADER = {"Authorization": f"token {GITHUB_TOKEN}"}
