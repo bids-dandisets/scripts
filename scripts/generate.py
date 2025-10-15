@@ -24,7 +24,8 @@ pynwb_warnings_to_suppress = [
 for message in pynwb_warnings_to_suppress:
     warnings.filterwarnings(action="ignore", category=UserWarning, message=message)
 
-MAX_WORKERS = None
+# MAX_WORKERS = None
+MAX_WORKERS = 1
 LIMIT_SESSIONS = os.getenv("LIMIT_SESSIONS", None)
 LIMIT_DANDISETS = None
 
@@ -41,7 +42,8 @@ BASE_GITHUB_URL = f"https://{GITHUB_TOKEN}@github.com"
 BASE_GITHUB_API_URL = "https://api.github.com/repos"
 RAW_CONTENT_BASE_URL = "https://raw.githubusercontent.com/bids-dandisets"
 
-BASE_DIRECTORY = pathlib.Path("/data/dandi/bids-dandisets/work")
+# BASE_DIRECTORY = pathlib.Path("/data/dandi/bids-dandisets/work")
+BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
 BASE_DIRECTORY.mkdir(exist_ok=True)
 
 AUTHENTICATION_HEADER = {"Authorization": f"token {GITHUB_TOKEN}"}
@@ -92,7 +94,7 @@ def run(limit: int | None = None) -> None:
                 )
 
             collections.deque(concurrent.futures.as_completed(futures), maxlen=0)
-    elif MAX_WORKERS == 0:
+    elif MAX_WORKERS == 1:
         for counter, dandiset in enumerate(dandisets):
             if limit is not None and counter >= limit:
                 break
@@ -225,6 +227,7 @@ def _write_bids_dandiset(
     nwb2bids_info_directory = repo_directory / ".nwb2bids"
     nwb2bids_info_directory.mkdir(exist_ok=True)
     run_info_file_path = nwb2bids_info_directory / "run_info.json"
+    manifest_file_path = nwb2bids_info_directory / "manifest.txt"
 
     bids_ignore_file_path = repo_directory / ".bidsignore"
     derivatives_directory = repo_directory / "derivatives"
@@ -287,18 +290,15 @@ def _write_bids_dandiset(
     )
     _deploy_subprocess(command=bids_validator_json_command, ignore_errors=True)
 
-    with bids_validation_json_file_path.open(mode="r") as file_stream:
-        content = json.load(fp=file_stream)
-    with bids_validation_json_file_path.open(mode="w") as file_stream:
-        json.dump(obj=content, fp=file_stream, indent=2)
+    if bids_validation_json_file_path.exists():
+        with bids_validation_json_file_path.open(mode="r") as file_stream:
+            content = json.load(fp=file_stream)
+        with bids_validation_json_file_path.open(mode="w") as file_stream:
+            json.dump(obj=content, fp=file_stream, indent=2)
 
     # _deploy_subprocess(command=f"dandi validate {repo_directory} > {dandi_validation_file_path}", ignore_errors=True)
 
     # Write last as a sign of completion
-    # Temporary
-    old_file_path = repo_directory / ".run_info.json"
-    old_file_path.unlink(missing_ok=True)
-
     dandiset_run_info = run_info.copy()
     session_subdirectories = {
         path
@@ -315,6 +315,16 @@ def _write_bids_dandiset(
 
     with run_info_file_path.open(mode="w") as file_stream:
         json.dump(obj=dandiset_run_info, fp=file_stream, indent=2)
+
+    # Also dump manifest
+    files = []
+    for root, _, filenames in repo_directory.walk():
+        for filename in filenames:
+            file_path = pathlib.Path(root) / filename
+            relative_path = file_path.relative_to(repo_directory)
+            files.append(relative_path.as_posix())
+    non_hidden_files = [file for file in files if not any(part.startswith(".") for part in file.split("/"))]
+    manifest_file_path.write_text(data="\n".join(non_hidden_files))
 
 
 def _configure_git_repo(repo_directory: pathlib.Path) -> None:
