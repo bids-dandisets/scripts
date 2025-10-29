@@ -26,10 +26,8 @@ for message in pynwb_warnings_to_suppress:
     warnings.filterwarnings(action="ignore", category=UserWarning, message=message)
 
 MAX_WORKERS = None
-# MAX_WORKERS = 1
 LIMIT_SESSIONS = None
 LIMIT_DANDISETS = None
-# LIMIT_DANDISETS = 1
 
 GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
 if GITHUB_TOKEN is None:
@@ -45,7 +43,12 @@ BASE_GITHUB_API_URL = "https://api.github.com/repos"
 RAW_CONTENT_BASE_URL = "https://raw.githubusercontent.com/bids-dandisets"
 
 BASE_DIRECTORY = pathlib.Path("/data/dandi/bids-dandisets/work")
+
+# Cody's local debugging
 # BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
+# MAX_WORKERS = 1
+# LIMIT_DANDISETS = 1
+
 BASE_DIRECTORY.mkdir(exist_ok=True)
 
 AUTHENTICATION_HEADER = {"Authorization": f"token {GITHUB_TOKEN}"}
@@ -62,7 +65,7 @@ PARALLEL_LOG_DIRECTORY.mkdir(exist_ok=True)
 
 # Map from nwb2bids branch name to desired bids-dandiset branch name
 BRANCH_MAP = {
-    "main": "bids",
+    "main": "draft",
     "alternative_sanitization": "basic_sanitization",
 }
 
@@ -71,7 +74,7 @@ def run(limit: int | None = None) -> None:
     version_tag_command = "git describe --tags --always"
     nwb2bids_repo_path = pathlib.Path(nwb2bids.__file__).parents[1]
     nwb2bids_version = _deploy_subprocess(command=version_tag_command, cwd=nwb2bids_repo_path).strip()
-    print(f"nwb2bids version: {nwb2bids_version}\n\n")
+    print(f"nwb2bids version: {nwb2bids_version}")
 
     branch_command = "git branch"
     branches = _deploy_subprocess(command=branch_command, cwd=nwb2bids_repo_path).strip().splitlines()
@@ -79,6 +82,7 @@ def run(limit: int | None = None) -> None:
         if branch.startswith("*"):
             nwb2bids_branch = branch.removeprefix("* ").strip()
             break
+    print(f"nwb2bids branch: {nwb2bids_branch}\n\n")
 
     run_info = {
         "nwb2bids_version": nwb2bids_version,
@@ -151,8 +155,13 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
         response = requests.get(url=run_info_url, headers=AUTHENTICATION_HEADER)
         if response.status_code == 200:
             previous_run_info = response.json()
-            previous_nwb2bids_version = packaging.version.Version(version=previous_run_info.get("nwb2bids_version", ""))
-            current_version = packaging.version.Version(version=run_info["nwb2bids_version"])
+
+            previous_nwb2bids_version = packaging.version.Version(
+                version="-".join(previous_run_info.get("nwb2bids_version", "").removeprefix("v").split("-")[:2])
+            )
+            current_version = packaging.version.Version(
+                version="-".join(run_info["nwb2bids_version"].removeprefix("v").split("-")[:2])
+            )
 
             previous_session_limit = previous_run_info.get("limit", None) or 0
             session_limit_not_exceeded = LIMIT_SESSIONS is None or LIMIT_SESSIONS <= previous_session_limit
@@ -173,28 +182,46 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
             bids_dandiset_branch_name = BRANCH_MAP[run_info["nwb2bids_branch"]]
             output = _deploy_subprocess(
                 command=f"git checkout {bids_dandiset_branch_name}",
-                cwd=BASE_DIRECTORY / repo_url,
+                cwd=BASE_DIRECTORY / repo_name,
             )
             if "error" in output:
                 _deploy_subprocess(
                     command=f"git checkout -b {bids_dandiset_branch_name}",
-                    cwd=BASE_DIRECTORY / repo_url,
+                    cwd=BASE_DIRECTORY / repo_name,
                 )
         else:
             _deploy_subprocess(command="git fetch", cwd=repo_directory)
-        _configure_git_repo(repo_directory=repo_directory)
-        _update_draft(repo_directory=repo_directory)
+        _deploy_subprocess(command="git pull", cwd=repo_directory)
+
+        print(f"Cleaning up {dandiset_id}...")
+
+        paths_to_clean = {
+            path for path in repo_directory.iterdir() if not path.name.startswith(".") and path.is_dir()
+        } - {pathlib.Path(path) for path in [".git", ".gitattributes", ".datalad", ".dandi", "dandiset.yaml"]}
+        for path in paths_to_clean:
+            shutil.rmtree(path=path)
 
         print(f"Converting {dandiset_id}...")
 
-        dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
-            dandiset_id=dandiset_id, limit=LIMIT_SESSIONS
-        )
+        if run_info["nwb2bids_branch"] == "main":
+            dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
+                dandiset_id=dandiset_id, limit=LIMIT_SESSIONS
+            )
+        elif run_info["nwb2bids_branch"] == "alternative_sanitization":
+            run_config = nwb2bids.RunConfig(bids_directory=repo_directory)
+            dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
+                dandiset_id=dandiset_id,
+                limit=LIMIT_SESSIONS,
+                run_config=run_config,
+            )
+
         dataset_converter.extract_metadata()
 
         print(f"Updating draft of {dandiset_id} ...")
 
         _write_bids_dandiset(dataset_converter=dataset_converter, repo_directory=repo_directory, run_info=run_info)
+
+        _configure_git_repo(repo_directory=repo_directory)
         _push_changes(repo_directory=repo_directory, branch_name="draft")
 
         # TODO: only make other branches for config options like sanitization
@@ -277,7 +304,10 @@ def _write_bids_dandiset(
     derivatives_directory.mkdir(exist_ok=True)
     validations_directory.mkdir(exist_ok=True)
 
-    dataset_converter.convert_to_bids_dataset(bids_directory=repo_directory)
+    if run_info["nwb2bids_branch"] == "main":
+        dataset_converter.convert_to_bids_dataset(bids_directory=repo_directory)
+    elif run_info["nwb2bids_branch"] == "alternative_sanitization":
+        dataset_converter.convert_to_bids_dataset()
 
     # Required for BIDs validation on Dandisets
     bids_ignore_file_path.write_text("dandiset.yaml\n")
@@ -360,11 +390,6 @@ def _configure_git_repo(repo_directory: pathlib.Path) -> None:
         command='git config --local user.email "github-actions[bot]@users.noreply.github.com"', cwd=repo_directory
     )
     _deploy_subprocess(command='git config --local user.name "github-actions[bot]"', cwd=repo_directory)
-
-
-def _update_draft(repo_directory: pathlib.Path) -> None:
-    _deploy_subprocess(command="git checkout draft", cwd=repo_directory)
-    _deploy_subprocess(command="git pull", cwd=repo_directory)
 
 
 def _push_changes(repo_directory: pathlib.Path, branch_name: str) -> None:
