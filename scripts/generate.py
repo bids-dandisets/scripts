@@ -333,7 +333,7 @@ def _write_bids_dandiset(
     #     _deploy_subprocess(command=nwb_inspector_command, ignore_errors=True)
 
     bids_validator_command = (
-        f"bids-validator-deno --ignoreNiftiHeaders --verbose --outfile {bids_validation_file_path} "
+        f"bids-validator-deno --ignoreNiftiHeaders --outfile {bids_validation_file_path} "
         "--schema https://raw.githubusercontent.com/bids-standard/bids-schema/enh-prs-and-beps/BEPs/32/schema.json "
         f"--config {BIDS_VALIDATION_CONFIG_FILE_PATH} "
         f"{repo_directory}"
