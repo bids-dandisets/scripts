@@ -13,6 +13,7 @@ import warnings
 
 import dandi.dandiapi
 import nwb2bids
+import packaging.version
 import requests
 
 pynwb_warnings_to_suppress = [
@@ -24,10 +25,11 @@ pynwb_warnings_to_suppress = [
 for message in pynwb_warnings_to_suppress:
     warnings.filterwarnings(action="ignore", category=UserWarning, message=message)
 
-MAX_WORKERS = None
-# MAX_WORKERS = 1
+# MAX_WORKERS = None
+MAX_WORKERS = 1
 LIMIT_SESSIONS = None
-LIMIT_DANDISETS = None
+# LIMIT_DANDISETS = None
+LIMIT_DANDISETS = 1
 
 GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
 if GITHUB_TOKEN is None:
@@ -42,8 +44,8 @@ BASE_GITHUB_URL = f"https://{GITHUB_TOKEN}@github.com"
 BASE_GITHUB_API_URL = "https://api.github.com/repos"
 RAW_CONTENT_BASE_URL = "https://raw.githubusercontent.com/bids-dandisets"
 
-BASE_DIRECTORY = pathlib.Path("/data/dandi/bids-dandisets/work")
-# BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
+# BASE_DIRECTORY = pathlib.Path("/data/dandi/bids-dandisets/work")
+BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
 BASE_DIRECTORY.mkdir(exist_ok=True)
 
 AUTHENTICATION_HEADER = {"Authorization": f"token {GITHUB_TOKEN}"}
@@ -58,6 +60,12 @@ if not BIDS_VALIDATION_CONFIG_FILE_PATH.exists():
 PARALLEL_LOG_DIRECTORY = BASE_DIRECTORY / ".parallel_logs"
 PARALLEL_LOG_DIRECTORY.mkdir(exist_ok=True)
 
+# Map from nwb2bids branch name to desired bids-dandiset branch name
+BRANCH_MAP = {
+    "main": "bids",
+    "alternative_sanitization": "basic_sanitization",
+}
+
 
 def run(limit: int | None = None) -> None:
     version_tag_command = "git describe --tags --always"
@@ -65,8 +73,16 @@ def run(limit: int | None = None) -> None:
     nwb2bids_version = _deploy_subprocess(command=version_tag_command, cwd=nwb2bids_repo_path).strip()
     print(f"nwb2bids version: {nwb2bids_version}\n\n")
 
+    branch_command = "git branch"
+    branches = _deploy_subprocess(command=branch_command, cwd=nwb2bids_repo_path).strip().splitlines()
+    for branch in branches:
+        if branch.startswith("*"):
+            nwb2bids_branch = branch.removeprefix("* ").strip()
+            break
+
     run_info = {
         "nwb2bids_version": nwb2bids_version,
+        "nwb2bids_branch": nwb2bids_branch,
         "limit": LIMIT_SESSIONS,
         "sessions_converted": None,
         "total_sessions": None,
@@ -135,11 +151,12 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
         response = requests.get(url=run_info_url, headers=AUTHENTICATION_HEADER)
         if response.status_code == 200:
             previous_run_info = response.json()
-            previous_nwb2bids_version = previous_run_info.get("nwb2bids_version", "")
+            previous_nwb2bids_version = packaging.version.Version(version=previous_run_info.get("nwb2bids_version", ""))
+            current_version = packaging.version.Version(version=run_info["nwb2bids_version"])
+
             previous_session_limit = previous_run_info.get("limit", None) or 0
-            if previous_nwb2bids_version == run_info["nwb2bids_version"] and (
-                LIMIT_SESSIONS is None or LIMIT_SESSIONS <= previous_session_limit
-            ):
+            session_limit_not_exceeded = LIMIT_SESSIONS is None or LIMIT_SESSIONS <= previous_session_limit
+            if previous_nwb2bids_version >= current_version and session_limit_not_exceeded:
                 print(f"Skipping {dandiset_id} - already up to date!\n\n")
 
                 return
@@ -152,6 +169,17 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
 
             repo_url = f"{BASE_GITHUB_URL}/{repo_name}"
             _deploy_subprocess(command=f"git clone {repo_url}", cwd=BASE_DIRECTORY)
+
+            bids_dandiset_branch_name = BRANCH_MAP[run_info["nwb2bids_branch"]]
+            output = _deploy_subprocess(
+                command=f"git checkout {bids_dandiset_branch_name}",
+                cwd=BASE_DIRECTORY / repo_url,
+            )
+            if "error" in output:
+                _deploy_subprocess(
+                    command=f"git checkout -b {bids_dandiset_branch_name}",
+                    cwd=BASE_DIRECTORY / repo_url,
+                )
         else:
             _deploy_subprocess(command="git fetch", cwd=repo_directory)
         _configure_git_repo(repo_directory=repo_directory)
