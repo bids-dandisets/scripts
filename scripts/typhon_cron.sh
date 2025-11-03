@@ -6,6 +6,10 @@ source /data/dandi/s3-logs/conda/bin/activate bids_dandisets
 cd /data/dandi/bids-dandisets/scripts
 git pull
 cd /data/dandi/bids-dandisets/nwb2bids
+git checkout main
+git pull
+python /data/dandi/bids-dandisets/scripts/scripts/generate.py
+git checkout alternative_sanitization
 git pull
 python /data/dandi/bids-dandisets/scripts/scripts/generate.py
 
