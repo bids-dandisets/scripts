@@ -200,7 +200,10 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
             path for path in repo_directory.iterdir() if not path.name.startswith(".") and path.is_dir()
         } - {pathlib.Path(path) for path in [".git", ".gitattributes", ".datalad", ".dandi", "dandiset.yaml"]}
         for path in paths_to_clean:
-            shutil.rmtree(path=path)
+            if path.is_dir():
+                shutil.rmtree(path=path)
+            else:
+                path.unlink()
 
         print(f"Converting {dandiset_id}...")
 
