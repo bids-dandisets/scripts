@@ -181,7 +181,10 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
         print(f"\tChecking out branch {bids_dandiset_branch_name}...")
 
         output = _deploy_subprocess(
-            command=f"git checkout {bids_dandiset_branch_name}", cwd=repo_directory, return_combined_output=True
+            command=f"git checkout {bids_dandiset_branch_name}",
+            cwd=repo_directory,
+            return_combined_output=True,
+            ignore_errors=True,
         )
         if "error" in output:
             output = _deploy_subprocess(command=f"git checkout -b {bids_dandiset_branch_name}", cwd=repo_directory)
