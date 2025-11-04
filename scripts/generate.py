@@ -76,12 +76,7 @@ def run(limit: int | None = None) -> None:
     nwb2bids_version = _deploy_subprocess(command=version_tag_command, cwd=nwb2bids_repo_path).strip()
     print(f"nwb2bids version: {nwb2bids_version}")
 
-    branch_command = "git branch"
-    branches = _deploy_subprocess(command=branch_command, cwd=nwb2bids_repo_path).strip().splitlines()
-    for branch in branches:
-        if branch.startswith("*"):
-            nwb2bids_branch = branch.removeprefix("* ").strip()
-            break
+    nwb2bids_branch = _get_current_branch(cwd=nwb2bids_repo_path)
     print(f"nwb2bids branch: {nwb2bids_branch}\n\n")
 
     run_info = {
@@ -184,17 +179,16 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
         bids_dandiset_branch_name = BRANCH_MAP[run_info["nwb2bids_branch"]]
         print(f"\tChecking out branch {bids_dandiset_branch_name}...")
 
-        output = _deploy_subprocess(
-            command=f"git checkout {bids_dandiset_branch_name}",
-            cwd=BASE_DIRECTORY / repo_name,
-        )
+        output = _deploy_subprocess(command=f"git checkout {bids_dandiset_branch_name}", cwd=repo_directory)
         if "error" in output:
-            output = _deploy_subprocess(
-                command=f"git checkout -b {bids_dandiset_branch_name}",
-                cwd=BASE_DIRECTORY / repo_name,
-            )
+            output = _deploy_subprocess(command=f"git checkout -b {bids_dandiset_branch_name}", cwd=repo_directory)
         if "error" in output:
             message = f"Could not checkout or create branch {bids_dandiset_branch_name}!"
+            raise RuntimeError(message)
+
+        current_branch = _get_current_branch(cwd=repo_directory)
+        if current_branch != bids_dandiset_branch_name:
+            message = f"Current branch ({current_branch}) does not equal target ({bids_dandiset_branch_name})!"
             raise RuntimeError(message)
 
         _deploy_subprocess(command="git pull", cwd=repo_directory)
@@ -389,6 +383,16 @@ def _write_bids_dandiset(
             files.append(relative_path.as_posix())
     non_hidden_files = [file for file in files if not any(part.startswith(".") for part in file.split("/"))]
     manifest_file_path.write_text(data="\n".join(non_hidden_files))
+
+
+def _get_current_branch(cwd: pathlib.Path) -> str:
+    branch_command = "git branch"
+    branches = _deploy_subprocess(command=branch_command, cwd=cwd).strip().splitlines()
+    for branch in branches:
+        if branch.startswith("*"):
+            current_branch = branch.removeprefix("* ").strip()
+            break
+    return current_branch
 
 
 def _configure_git_repo(repo_directory: pathlib.Path) -> None:
