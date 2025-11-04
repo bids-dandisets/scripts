@@ -121,6 +121,7 @@ def run(limit: int | None = None) -> None:
 
 
 def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: dict) -> None:
+    bids_dandiset_branch_name = "unknown"
     try:
         print(f"Processing Dandiset {dandiset_id}...")
 
@@ -238,7 +239,7 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
 
         print(f"Process complete for Dandiset {dandiset_id}!\n\n")
     except Exception as exception:
-        log_file_path = PARALLEL_LOG_DIRECTORY / f"{dandiset_id}.log"
+        log_file_path = PARALLEL_LOG_DIRECTORY / f"{dandiset_id}_{bids_dandiset_branch_name}.log"
         with log_file_path.open(mode="w") as file_stream:
             file_stream.write(f"{type(exception)}: {str(exception)}\n\n{traceback.format_exc()}")
 
