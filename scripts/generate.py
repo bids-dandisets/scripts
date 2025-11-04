@@ -180,7 +180,9 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
         bids_dandiset_branch_name = BRANCH_MAP[run_info["nwb2bids_branch"]]
         print(f"\tChecking out branch {bids_dandiset_branch_name}...")
 
-        output = _deploy_subprocess(command=f"git checkout {bids_dandiset_branch_name}", cwd=repo_directory)
+        output = _deploy_subprocess(
+            command=f"git checkout {bids_dandiset_branch_name}", cwd=repo_directory, return_combined_output=True
+        )
         if "error" in output:
             output = _deploy_subprocess(command=f"git checkout -b {bids_dandiset_branch_name}", cwd=repo_directory)
         if "error" in output:
@@ -254,6 +256,7 @@ def _deploy_subprocess(
     environment_variables: dict[str, str] | None = None,
     error_message: str | None = None,
     ignore_errors: bool = False,
+    return_combined_output: bool = False,
 ) -> str | None:
     error_message = error_message or "An error occurred while executing the command."
 
@@ -277,8 +280,11 @@ def _deploy_subprocess(
     if result.returncode != 0 and ignore_errors is True:
         return None
 
-    combined_out = f"stdout: {result.stdout}\nstderr: {result.stderr}"
-    return combined_out
+    if return_combined_output is True:
+        combined_out = f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        return combined_out
+    else:
+        return result.stdout
 
 
 def _write_bids_dandiset(
