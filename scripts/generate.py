@@ -277,7 +277,8 @@ def _deploy_subprocess(
     if result.returncode != 0 and ignore_errors is True:
         return None
 
-    return result.stdout
+    combined_out = f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    return combined_out
 
 
 def _write_bids_dandiset(
