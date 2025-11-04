@@ -178,19 +178,25 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
 
             repo_url = f"{BASE_GITHUB_URL}/{repo_name}"
             _deploy_subprocess(command=f"git clone {repo_url}", cwd=BASE_DIRECTORY)
-
-            bids_dandiset_branch_name = BRANCH_MAP[run_info["nwb2bids_branch"]]
-            output = _deploy_subprocess(
-                command=f"git checkout {bids_dandiset_branch_name}",
-                cwd=BASE_DIRECTORY / repo_name,
-            )
-            if "error" in output:
-                _deploy_subprocess(
-                    command=f"git checkout -b {bids_dandiset_branch_name}",
-                    cwd=BASE_DIRECTORY / repo_name,
-                )
         else:
             _deploy_subprocess(command="git fetch", cwd=repo_directory)
+
+        bids_dandiset_branch_name = BRANCH_MAP[run_info["nwb2bids_branch"]]
+        print(f"\tChecking out branch {bids_dandiset_branch_name}...")
+
+        output = _deploy_subprocess(
+            command=f"git checkout {bids_dandiset_branch_name}",
+            cwd=BASE_DIRECTORY / repo_name,
+        )
+        if "error" in output:
+            output = _deploy_subprocess(
+                command=f"git checkout -b {bids_dandiset_branch_name}",
+                cwd=BASE_DIRECTORY / repo_name,
+            )
+        if "error" in output:
+            message = f"Could not checkout or create branch {bids_dandiset_branch_name}!"
+            raise RuntimeError(message)
+
         _deploy_subprocess(command="git pull", cwd=repo_directory)
 
         print(f"Cleaning up {dandiset_id}...")
