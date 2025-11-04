@@ -280,7 +280,7 @@ def _deploy_subprocess(
             f"stderr: {result.stderr}\n\n"
         )
         raise RuntimeError(message)
-    if result.returncode != 0 and ignore_errors is True:
+    if result.returncode != 0 and ignore_errors is True and return_combined_output is False:
         return None
 
     if return_combined_output is True:
