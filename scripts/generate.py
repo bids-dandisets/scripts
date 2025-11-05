@@ -197,7 +197,7 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
             message = f"Current branch ({current_branch}) does not equal target ({bids_dandiset_branch_name})!"
             raise RuntimeError(message)
 
-        _deploy_subprocess(command="git pull", cwd=repo_directory)
+        _deploy_subprocess(command="git pull", cwd=repo_directory, ignore_errors=True)
 
         print(f"Cleaning up {dandiset_id}...")
 
