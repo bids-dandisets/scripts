@@ -231,7 +231,7 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
         _write_bids_dandiset(dataset_converter=dataset_converter, repo_directory=repo_directory, run_info=run_info)
 
         _configure_git_repo(repo_directory=repo_directory)
-        _push_changes(repo_directory=repo_directory, branch_name="draft")
+        _push_changes(repo_directory=repo_directory, branch_name=bids_dandiset_branch_name)
 
         # TODO: only make other branches for config options like sanitization
         # try:
@@ -419,6 +419,20 @@ def _configure_git_repo(repo_directory: pathlib.Path) -> None:
 def _push_changes(repo_directory: pathlib.Path, branch_name: str) -> None:
     _deploy_subprocess(command="git add .", cwd=repo_directory)
     _deploy_subprocess(command='git commit --message "update"', cwd=repo_directory, ignore_errors=True)
+
+    if branch_name == "draft":
+        print("\tPushing changes to draft branch...")
+
+        _deploy_subprocess(command="git push", cwd=repo_directory)
+    else:
+        output = _deploy_subprocess(
+            command="git push", cwd=repo_directory, return_combined_output=True, ignore_errors=True
+        )
+        if "fatal" in output:
+            output = _deploy_subprocess(command=f"git push --set-upstream origin {branch_name}", cwd=repo_directory)
+        if "fatal" in output:
+            message = f"Could not push branch {branch_name}!"
+            raise RuntimeError(message)
 
     push_command = "git push" if branch_name == "draft" else f"git push --set-upstream origin {branch_name}"
     _deploy_subprocess(command=push_command, cwd=repo_directory)
