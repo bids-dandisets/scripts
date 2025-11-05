@@ -217,7 +217,10 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
                 dandiset_id=dandiset_id, limit=LIMIT_SESSIONS
             )
         elif run_info["nwb2bids_branch"] == "alternative_sanitization":
-            run_config = nwb2bids.RunConfig(bids_directory=repo_directory)
+            run_config = nwb2bids.RunConfig(
+                bids_directory=repo_directory,
+                sanitization_level=nwb2bids.sanitization.SanitizationLevel.CRITICAL_BIDS_LABELS,
+            )
             dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
                 dandiset_id=dandiset_id,
                 limit=LIMIT_SESSIONS,
