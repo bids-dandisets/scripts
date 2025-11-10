@@ -1,9 +1,21 @@
+import os
 import pathlib
 import subprocess
 
 import dandi.dandiapi
+import requests
 
-BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets")
+GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
+if GITHUB_TOKEN is None:
+    message = "`_GITHUB_API_KEY` environment variable not set"
+    raise ValueError(message)
+os.environ["GITHUB_TOKEN"] = GITHUB_TOKEN
+
+BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
+
+BASE_GITHUB_API_URL = "https://api.github.com/repos"
+BASE_GITHUB_URL = f"https://{GITHUB_TOKEN}@github.com"
+AUTHENTICATION_HEADER = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 
 def _deploy_subprocess(
@@ -45,7 +57,20 @@ def reset_excess_branches() -> None:
 
     for dandiset in dandisets:
         dandiset_id = dandiset.identifier
+
+        repo_name = f"bids-dandisets/{dandiset_id}"
+        repo_api_url = f"{BASE_GITHUB_API_URL}/{repo_name}"
+        response = requests.get(url=repo_api_url, headers=AUTHENTICATION_HEADER)
+        if response.status_code != 200:
+            print(f"Status code {response.status_code}: {response.json()["message"]}")
+            continue
+
         repo_directory = BASE_DIRECTORY / dandiset_id
+        if not repo_directory.exists():
+            print(f"Cloning Dandiset {dandiset_id}...")
+            repo_name = f"bids-dandisets/{dandiset_id}"
+            repo_url = f"{BASE_GITHUB_URL}/{repo_name}"
+            _deploy_subprocess(command=f"git clone {repo_url}", cwd=BASE_DIRECTORY, ignore_errors=True)
 
         print(f"Cleaning excess branches on Dandiset {dandiset_id}...")
 

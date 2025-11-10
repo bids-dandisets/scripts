@@ -69,6 +69,9 @@ def reset_github_repos() -> None:
             print("Cleaning repository...")
             headers = {"Authorization": f"token {GITHUB_TOKEN}"}
             requests.delete(url=repo_api_url, headers=headers)
+        else:
+            message = f"{response=}"
+            raise RuntimeError(message)
         print("Cleaning complete!\n\n")
 
 
