@@ -2,7 +2,7 @@ name: Update BIDS validations
 
 on:
   schedule:
-    - cron: "0 10 * * *"  # ~6am ET
+    - cron: "0 7 * * *"  # ~3am eastern time
   workflow_dispatch:
 
 concurrency:
