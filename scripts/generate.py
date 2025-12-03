@@ -311,8 +311,6 @@ def _write_bids_dandiset(
     nwb2bids_notifications_file_path = validations_directory / "nwb2bids_notifications.json"
     # nwb_inspector_version = importlib.metadata.version(distribution_name="nwbinspector").replace(".", "-")
     # nwb_inspection_file_path = inspections_directory / f"src-nwb-inspector_ver-{nwb_inspector_version}.txt"
-    bids_validation_file_path = validations_directory / "bids_validation.txt"
-    bids_validation_json_file_path = validations_directory / "bids_validation.json"
     # dandi_validation_file_path = validations_directory / "dandi_validation.txt"
 
     # Cleanup existing content from original fork or previous runs
@@ -351,28 +349,6 @@ def _write_bids_dandiset(
     #         f"nwbinspector --report-file-path {nwb_inspection_file_path} --overwrite --stream {dandiset_id}"
     #     )
     #     _deploy_subprocess(command=nwb_inspector_command, ignore_errors=True)
-
-    bids_validator_command = (
-        f"bids-validator-deno --ignoreNiftiHeaders --outfile {bids_validation_file_path} "
-        "--schema https://raw.githubusercontent.com/bids-standard/bids-schema/enh-prs-and-beps/BEPs/32/schema.json "
-        f"--config {BIDS_VALIDATION_CONFIG_FILE_PATH} "
-        f"{repo_directory}"
-    )
-    _deploy_subprocess(command=bids_validator_command, ignore_errors=True)  # Annoyingly always returns 1 on warnings
-
-    bids_validator_json_command = (
-        f"bids-validator-deno --ignoreNiftiHeaders --verbose --json --outfile {bids_validation_json_file_path} "
-        "--schema https://raw.githubusercontent.com/bids-standard/bids-schema/enh-prs-and-beps/BEPs/32/schema.json "
-        f"--config {BIDS_VALIDATION_CONFIG_FILE_PATH} "
-        f"{repo_directory}"
-    )
-    _deploy_subprocess(command=bids_validator_json_command, ignore_errors=True)
-
-    if bids_validation_json_file_path.exists():
-        with bids_validation_json_file_path.open(mode="r") as file_stream:
-            content = json.load(fp=file_stream)
-        with bids_validation_json_file_path.open(mode="w") as file_stream:
-            json.dump(obj=content, fp=file_stream, indent=2)
 
     # _deploy_subprocess(command=f"dandi validate {repo_directory} > {dandi_validation_file_path}", ignore_errors=True)
 
