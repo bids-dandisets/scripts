@@ -29,4 +29,7 @@ jobs:
         run: pip install dandi
 
       - name: Run script
-        run: python scripts/update_bids_validations.py
+        run: python scripts/update_bids_validations.py --branch draft
+
+      - name: Run script
+        run: python scripts/update_bids_validations.py --branch basic_sanitization
