@@ -1,0 +1,32 @@
+name: Update BIDS validations
+
+on:
+  schedule:
+    - cron: "0 10 * * *"  # ~6am ET
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  _GITHUB_API_KEY: ${{ secrets._GITHUB_API_KEY }}
+
+jobs:
+  UpdateBIDSValidations:
+    name: Update BIDS validations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
+      - name: Install dependencies
+        run: pip install dandi
+
+      - name: Run script
+        run: python scripts/scripts/update_bids_validations.py
