@@ -28,8 +28,8 @@ jobs:
       - name: Install dependencies
         run: pip install dandi
 
-      - name: Run script
+      - name: Run script on draft branches
         run: python scripts/update_bids_validations.py --branch draft
 
-      - name: Run script
+      - name: Run script on sanitization branches
         run: python scripts/update_bids_validations.py --branch basic_sanitization
