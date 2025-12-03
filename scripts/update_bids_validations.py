@@ -94,6 +94,11 @@ def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
         print("\tCleaning previous JSON...")
         bids_validation_json_file_path.unlink()
 
+    dataset_description_file_path = repo_directory / "dataset_description.json"
+    if not dataset_description_file_path.exists():
+        print("\tNo dataset description found - skipping...\n\n")
+        return
+
     print(f"\tRunning BIDS Validation on {repo_directory}...")
     bids_validator_command = (
         f"bids-validator-deno --ignoreNiftiHeaders --outfile {bids_validation_file_path} "
