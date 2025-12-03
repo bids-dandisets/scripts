@@ -1,7 +1,5 @@
 import collections
 import concurrent.futures
-import importlib
-import importlib.metadata
 import json
 import os
 import pathlib
@@ -19,10 +17,6 @@ GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
 if GITHUB_TOKEN is None:
     message = "`_GITHUB_API_KEY` environment variable not set"
     raise ValueError(message)
-
-if "site-packages" in importlib.util.find_spec("nwb2bids").origin:
-    message = "nwb2bids is installed in site-packages - please install in editable mode"
-    raise RuntimeError(message)
 
 BASE_GITHUB_URL = f"https://{GITHUB_TOKEN}@github.com"
 BASE_GITHUB_API_URL = "https://api.github.com/repos"
