@@ -106,9 +106,11 @@ def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
         f"--config {BIDS_VALIDATION_CONFIG_FILE_PATH} "
         f"{repo_directory}"
     )
-    _deploy_subprocess(command=bids_validator_command, ignore_errors=True)  # Annoyingly always returns 1 on warnings
+    out = _deploy_subprocess(
+        command=bids_validator_command, ignore_errors=True, return_combined_output=True
+    )  # Annoyingly always returns 1 on warnings
     if not bids_validation_file_path.exists():
-        message = f"BIDS validation summary file not created at {bids_validation_file_path}!"
+        message = f"\nBIDS validation summary file not created at {bids_validation_file_path}!\nOutput: {out}"
         raise FileNotFoundError(message)
 
     bids_validator_json_command = (
@@ -117,9 +119,9 @@ def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
         f"--config {BIDS_VALIDATION_CONFIG_FILE_PATH} "
         f"{repo_directory}"
     )
-    _deploy_subprocess(command=bids_validator_json_command, ignore_errors=True)
+    out = _deploy_subprocess(command=bids_validator_json_command, ignore_errors=True, return_combined_output=True)
     if not bids_validation_json_file_path.exists():
-        message = f"BIDS validation JSON file not created at {bids_validation_json_file_path}!"
+        message = f"\nBIDS validation JSON file not created at {bids_validation_json_file_path}!\nOutput: {out}"
         raise FileNotFoundError(message)
     with bids_validation_json_file_path.open(mode="r") as file_stream:
         content = json.load(fp=file_stream)
