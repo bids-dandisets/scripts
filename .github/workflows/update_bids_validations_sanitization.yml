@@ -1,14 +1,8 @@
-name: Update BIDS validations
+name: Update BIDS validations (sanitization CRON)
 
 on:
   schedule:
-    - cron: "0 4 * * *"  # ~12am eastern time
-  workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch of BIDS-Dandisets to run BIDS validation on'
-        required: false
-        default: 'draft'
+    - cron: "0 7 * * *"  # ~3am eastern time
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -34,4 +28,4 @@ jobs:
         run: pip install dandi
 
       - name: Run script on draft branches
-        run: python scripts/update_bids_validations.py --branch {{ github.event.inputs.branch || 'draft' }}
+        run: python scripts/update_bids_validations.py --branch sanitization
