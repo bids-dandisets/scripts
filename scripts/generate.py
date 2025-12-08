@@ -44,7 +44,7 @@ RAW_CONTENT_BASE_URL = "https://raw.githubusercontent.com/bids-dandisets"
 BASE_DIRECTORY = pathlib.Path("/data/dandi/bids-dandisets/work")
 
 # Cody's local debugging
-BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
+# BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
 
 BASE_DIRECTORY.mkdir(exist_ok=True)
 
