@@ -1,3 +1,4 @@
+import argparse
 import collections
 import concurrent.futures
 import importlib
@@ -25,9 +26,7 @@ pynwb_warnings_to_suppress = [
 for message in pynwb_warnings_to_suppress:
     warnings.filterwarnings(action="ignore", category=UserWarning, message=message)
 
-MAX_WORKERS = None
 LIMIT_SESSIONS = None
-LIMIT_DANDISETS = None
 
 GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
 if GITHUB_TOKEN is None:
@@ -45,9 +44,7 @@ RAW_CONTENT_BASE_URL = "https://raw.githubusercontent.com/bids-dandisets"
 BASE_DIRECTORY = pathlib.Path("/data/dandi/bids-dandisets/work")
 
 # Cody's local debugging
-# BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
-# MAX_WORKERS = 1
-# LIMIT_DANDISETS = 1
+BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
 
 BASE_DIRECTORY.mkdir(exist_ok=True)
 
@@ -63,14 +60,8 @@ if not BIDS_VALIDATION_CONFIG_FILE_PATH.exists():
 PARALLEL_LOG_DIRECTORY = BASE_DIRECTORY / ".parallel_logs"
 PARALLEL_LOG_DIRECTORY.mkdir(exist_ok=True)
 
-# Map from nwb2bids branch name to desired bids-dandiset branch name
-BRANCH_MAP = {
-    "main": "draft",
-    "alternative_sanitization": "basic_sanitization",
-}
 
-
-def run(limit: int | None = None) -> None:
+def run(max_workers: int | None = None, limit: int | None = None, branch_name: str = "draft") -> None:
     version_tag_command = "git describe --tags --always"
     nwb2bids_repo_path = pathlib.Path(nwb2bids.__file__).parents[1]
     nwb2bids_version = _deploy_subprocess(command=version_tag_command, cwd=nwb2bids_repo_path).strip()
@@ -91,8 +82,19 @@ def run(limit: int | None = None) -> None:
     dandisets = list(client.get_dandisets())
     dandisets.sort(key=lambda dandiset: int(dandiset.identifier))
 
-    if MAX_WORKERS is None or MAX_WORKERS != 0:
-        with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    if max_workers == 1:
+        for counter, dandiset in enumerate(dandisets):
+            if limit is not None and counter >= limit:
+                break
+
+            dandiset_id = dandiset.identifier
+            repo_directory = BASE_DIRECTORY / dandiset_id
+
+            _convert_dandiset(
+                dandiset_id=dandiset_id, repo_directory=repo_directory, run_info=run_info, branch_name=branch_name
+            )
+    elif max_workers is None or max_workers != 0:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = []
 
             for counter, dandiset in enumerate(dandisets):
@@ -104,24 +106,18 @@ def run(limit: int | None = None) -> None:
 
                 futures.append(
                     executor.submit(
-                        _convert_dandiset, dandiset_id=dandiset_id, repo_directory=repo_directory, run_info=run_info
+                        _convert_dandiset,
+                        dandiset_id=dandiset_id,
+                        repo_directory=repo_directory,
+                        run_info=run_info,
+                        branch_name=branch_name,
                     )
                 )
 
             collections.deque(concurrent.futures.as_completed(futures), maxlen=0)
-    elif MAX_WORKERS == 1:
-        for counter, dandiset in enumerate(dandisets):
-            if limit is not None and counter >= limit:
-                break
-
-            dandiset_id = dandiset.identifier
-            repo_directory = BASE_DIRECTORY / dandiset_id
-
-            _convert_dandiset(dandiset_id=dandiset_id, repo_directory=repo_directory, run_info=run_info)
 
 
-def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: dict) -> None:
-    bids_dandiset_branch_name = "unknown"
+def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: dict, branch_name: str) -> None:
     try:
         print(f"Processing Dandiset {dandiset_id}...")
 
@@ -147,7 +143,7 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
             time.sleep(30)  # Give it some time to complete
 
         # Decide whether to skip based on hidden details of generation runs
-        run_info_url = f"{RAW_CONTENT_BASE_URL}/{dandiset_id}/draft/.nwb2bids/run_info.json"
+        run_info_url = f"{RAW_CONTENT_BASE_URL}/{dandiset_id}/{branch_name}/.nwb2bids/run_info.json"
         response = requests.get(url=run_info_url, headers=AUTHENTICATION_HEADER)
         if response.status_code == 200:
             previous_run_info = response.json()
@@ -177,52 +173,52 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
         else:
             _deploy_subprocess(command="git fetch", cwd=repo_directory)
 
-        bids_dandiset_branch_name = BRANCH_MAP[run_info["nwb2bids_branch"]]
-        print(f"\tChecking out branch {bids_dandiset_branch_name}...")
+        print(f"\tChecking out branch {branch_name}...")
 
         output = _deploy_subprocess(
-            command=f"git checkout {bids_dandiset_branch_name}",
+            command=f"git checkout {branch_name}",
             cwd=repo_directory,
             return_combined_output=True,
             ignore_errors=True,
         )
         if "error" in output:
-            output = _deploy_subprocess(command=f"git checkout -b {bids_dandiset_branch_name}", cwd=repo_directory)
+            output = _deploy_subprocess(command=f"git checkout -b {branch_name}", cwd=repo_directory)
         if "error" in output:
-            message = f"Could not checkout or create branch {bids_dandiset_branch_name}!"
+            message = f"Could not checkout or create branch {branch_name}!"
             raise RuntimeError(message)
 
         current_branch = _get_current_branch(cwd=repo_directory)
-        if current_branch != bids_dandiset_branch_name:
-            message = f"Current branch ({current_branch}) does not equal target ({bids_dandiset_branch_name})!"
+        if current_branch != branch_name:
+            message = f"Current branch ({current_branch}) does not equal target ({branch_name})!"
             raise RuntimeError(message)
 
         _deploy_subprocess(command="git pull", cwd=repo_directory, ignore_errors=True)
 
-        print(f"Cleaning up {dandiset_id}...")
+        print(f"\tCleaning up {dandiset_id}...")
 
-        paths_to_clean = {
-            path for path in repo_directory.iterdir() if not path.name.startswith(".") and path.is_dir()
-        } - {pathlib.Path(path) for path in [".git", ".gitattributes", ".datalad", ".dandi", "dandiset.yaml"]}
+        paths_to_clean = {path for path in repo_directory.iterdir()} - {
+            repo_directory / path for path in [".git", ".gitattributes", ".datalad", ".dandi", "dandiset.yaml"]
+        }
         for path in paths_to_clean:
             if path.is_dir():
                 shutil.rmtree(path=path)
             else:
                 path.unlink()
 
-        print(f"Converting {dandiset_id}...")
+        print(f"\tConverting {dandiset_id}...")
 
-        if run_info["nwb2bids_branch"] == "main":
-            dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
-                dandiset_id=dandiset_id, limit=LIMIT_SESSIONS
+        if branch_name == "draft":
+            run_config = nwb2bids.RunConfig(
+                bids_directory=repo_directory,
+                sanitization_level=nwb2bids.sanitization.SanitizationLevel.NONE,
             )
-        elif run_info["nwb2bids_branch"] == "alternative_sanitization":
-            nwb2bids_info_directory = repo_directory / ".nwb2bids"
-            nwb2bids_info_directory.mkdir(exist_ok=True)
+            dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
+                dandiset_id=dandiset_id, limit=LIMIT_SESSIONS, run_config=run_config
+            )
+        elif branch_name == "basic_sanitization":
             run_config = nwb2bids.RunConfig(
                 bids_directory=repo_directory,
                 sanitization_level=nwb2bids.sanitization.SanitizationLevel.CRITICAL_BIDS_LABELS,
-                cache_directory=nwb2bids_info_directory,
             )
             dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
                 dandiset_id=dandiset_id,
@@ -237,7 +233,7 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
         _write_bids_dandiset(dataset_converter=dataset_converter, repo_directory=repo_directory, run_info=run_info)
 
         _configure_git_repo(repo_directory=repo_directory)
-        _push_changes(repo_directory=repo_directory, branch_name=bids_dandiset_branch_name)
+        _push_changes(repo_directory=repo_directory, branch_name=branch_name)
 
         # TODO: only make other branches for config options like sanitization
         # try:
@@ -253,7 +249,7 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
 
         print(f"Process complete for Dandiset {dandiset_id}!\n\n")
     except Exception as exception:
-        log_file_path = PARALLEL_LOG_DIRECTORY / f"{dandiset_id}_{bids_dandiset_branch_name}.log"
+        log_file_path = PARALLEL_LOG_DIRECTORY / f"{dandiset_id}_{branch_name}.log"
         with log_file_path.open(mode="w") as file_stream:
             file_stream.write(f"{type(exception)}: {str(exception)}\n\n{traceback.format_exc()}")
 
@@ -421,4 +417,25 @@ def _push_changes(repo_directory: pathlib.Path, branch_name: str) -> None:
 
 
 if __name__ == "__main__":
-    run(limit=LIMIT_DANDISETS)
+    parser = argparse.ArgumentParser(description="Update BIDS validations for Dandisets")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Maximum number of workers to use (default: None)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Maximum number of Dandisets to process (default: None)",
+    )
+    parser.add_argument(
+        "--branch",
+        type=str,
+        default="draft",
+        help="Branch name to use for validation (default: draft)",
+    )
+    args = parser.parse_args()
+
+    run(max_workers=args.workers, limit=args.limit, branch_name=args.branch)
