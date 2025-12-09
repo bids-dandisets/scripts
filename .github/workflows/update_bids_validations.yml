@@ -34,7 +34,7 @@ jobs:
         with:
           python-version: 3.13
       - name: Install dependencies
-        run: pip install dandi bids-validator-deno!=2.2.4
+        run: pip install dandi
 
       - name: Run script on draft branches
         run: python scripts/update_bids_validations.py --branch ${{ github.event.inputs.branch || 'draft' }}
