@@ -10,7 +10,7 @@ import tempfile
 import dandi.dandiapi
 import requests
 
-MAX_WORKERS = 1  # TODO: try None in GitHub actions when working to see how fast it is
+MAX_WORKERS = 2  # TODO: try None in GitHub actions when working to see how fast it is
 
 GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
 if GITHUB_TOKEN is None:
@@ -38,7 +38,15 @@ def run(limit: int | None = None, branch_name: str = "draft") -> None:
     dandisets = list(client.get_dandisets())
     dandisets.sort(key=lambda dandiset: int(dandiset.identifier))
 
-    if MAX_WORKERS is None or MAX_WORKERS != 1:
+    if MAX_WORKERS == 1:
+        for counter, dandiset in enumerate(dandisets):
+            if limit is not None and counter >= limit:
+                break
+
+            dandiset_id = dandiset.identifier
+            _run_bids_validation(dandiset_id=dandiset_id, branch_name=branch_name)
+
+    elif MAX_WORKERS is None or MAX_WORKERS != 0:
         with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = []
 
@@ -50,13 +58,6 @@ def run(limit: int | None = None, branch_name: str = "draft") -> None:
                 futures.append(executor.submit(_run_bids_validation, dandiset_id=dandiset_id))
 
             collections.deque(concurrent.futures.as_completed(futures), maxlen=0)
-    elif MAX_WORKERS == 1:
-        for counter, dandiset in enumerate(dandisets):
-            if limit is not None and counter >= limit:
-                break
-
-            dandiset_id = dandiset.identifier
-            _run_bids_validation(dandiset_id=dandiset_id, branch_name=branch_name)
 
 
 def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
