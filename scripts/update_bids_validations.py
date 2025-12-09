@@ -10,7 +10,7 @@ import tempfile
 import dandi.dandiapi
 import requests
 
-MAX_WORKERS = 2  # TODO: try None in GitHub actions when working to see how fast it is
+MAX_WORKERS = None  # TODO: try None in GitHub actions when working to see how fast it is
 
 GITHUB_TOKEN = os.environ.get("_GITHUB_API_KEY", None)
 if GITHUB_TOKEN is None:
@@ -55,7 +55,7 @@ def run(limit: int | None = None, branch_name: str = "draft") -> None:
                     break
 
                 dandiset_id = dandiset.identifier
-                futures.append(executor.submit(_run_bids_validation, dandiset_id=dandiset_id))
+                futures.append(executor.submit(_run_bids_validation, dandiset_id=dandiset_id, branch_name=branch_name))
 
             collections.deque(concurrent.futures.as_completed(futures), maxlen=0)
 
