@@ -99,8 +99,8 @@ def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
     if not dataset_description_file_path.exists():
         print("\tNo dataset description found - skipping...\n\n")
         return
-    bids_validation_file_path.parent.mkdir(parents=True, exist_ok=True)
-    bids_validation_json_file_path.parent.mkdir(parents=True, exist_ok=True)
+    derivatives_directory.mkdir(exist_ok=True)
+    validations_directory.mkdir(exist_ok=True)
 
     print(f"\tRunning BIDS Validation on {repo_directory}...")
     bids_validator_command = (
