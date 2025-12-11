@@ -28,7 +28,7 @@ jobs:
         run: pip install dandi
 
       - name: Run script on draft branches
-        run: python scripts/update_bids_validations.py --branch sanitization
+        run: python scripts/update_bids_validations.py --branch basic_sanitization
 
   NotifyOnFailure:
     runs-on: ubuntu-latest
