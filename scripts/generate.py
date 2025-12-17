@@ -1,4 +1,3 @@
-import argparse
 import collections
 import concurrent.futures
 import importlib
@@ -22,6 +21,7 @@ pynwb_warnings_to_suppress = [
     ".+ which is not compliant with .+",
     ".+ The second dimension of data .+",
     "Loaded namespace .+",
+    "Support for automatic extraction of .+",
 ]
 for message in pynwb_warnings_to_suppress:
     warnings.filterwarnings(action="ignore", category=UserWarning, message=message)
@@ -61,7 +61,9 @@ PARALLEL_LOG_DIRECTORY = BASE_DIRECTORY / ".parallel_logs"
 PARALLEL_LOG_DIRECTORY.mkdir(exist_ok=True)
 
 
-def run(max_workers: int | None = None, limit: int | None = None, branch_name: str = "draft") -> None:
+def run(
+    max_workers: int | None = None, limit: int | None = None, branch_name: str = "draft", force: bool = False
+) -> None:
     version_tag_command = "git describe --tags --always"
     nwb2bids_repo_path = pathlib.Path(nwb2bids.__file__).parents[1]
     nwb2bids_version = _deploy_subprocess(command=version_tag_command, cwd=nwb2bids_repo_path).strip()
@@ -91,7 +93,11 @@ def run(max_workers: int | None = None, limit: int | None = None, branch_name: s
             repo_directory = BASE_DIRECTORY / dandiset_id
 
             _convert_dandiset(
-                dandiset_id=dandiset_id, repo_directory=repo_directory, run_info=run_info, branch_name=branch_name
+                dandiset_id=dandiset_id,
+                repo_directory=repo_directory,
+                run_info=run_info,
+                branch_name=branch_name,
+                force=force,
             )
     elif max_workers is None or max_workers != 0:
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -111,13 +117,16 @@ def run(max_workers: int | None = None, limit: int | None = None, branch_name: s
                         repo_directory=repo_directory,
                         run_info=run_info,
                         branch_name=branch_name,
+                        force=force,
                     )
                 )
 
             collections.deque(concurrent.futures.as_completed(futures), maxlen=0)
 
 
-def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: dict, branch_name: str) -> None:
+def _convert_dandiset(
+    dandiset_id: str, repo_directory: pathlib.Path, run_info: dict, branch_name: str, force: bool = False
+) -> None:
     try:
         print(f"Processing Dandiset {dandiset_id}...")
 
@@ -157,7 +166,7 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
 
             previous_session_limit = previous_run_info.get("limit", None) or 0
             session_limit_not_exceeded = LIMIT_SESSIONS is None or LIMIT_SESSIONS <= previous_session_limit
-            if previous_nwb2bids_version >= current_version and session_limit_not_exceeded:
+            if force is False and previous_nwb2bids_version >= current_version and session_limit_not_exceeded:
                 print(f"Skipping {dandiset_id} - already up to date!\n\n")
 
                 return
@@ -208,17 +217,14 @@ def _convert_dandiset(dandiset_id: str, repo_directory: pathlib.Path, run_info: 
         print(f"\tConverting {dandiset_id}...")
 
         if branch_name == "draft":
-            run_config = nwb2bids.RunConfig(
-                bids_directory=repo_directory,
-                sanitization_level=nwb2bids.sanitization.SanitizationLevel.NONE,
-            )
+            run_config = nwb2bids.RunConfig(bids_directory=repo_directory)
             dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
                 dandiset_id=dandiset_id, limit=LIMIT_SESSIONS, run_config=run_config
             )
         elif branch_name == "basic_sanitization":
             run_config = nwb2bids.RunConfig(
                 bids_directory=repo_directory,
-                sanitization_level=nwb2bids.sanitization.SanitizationLevel.CRITICAL_BIDS_LABELS,
+                sanitization_config=nwb2bids.sanitization.SanitizationConfig(SUB_LABELS=True, SES_LABELS=True),
             )
             dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
                 dandiset_id=dandiset_id,
@@ -304,7 +310,7 @@ def _write_bids_dandiset(
     derivatives_directory = repo_directory / "derivatives"
     derivatives_dataset_description_file_path = derivatives_directory / "dataset_description.json"
     validations_directory = derivatives_directory / "validations"
-    nwb2bids_notifications_file_path = validations_directory / "nwb2bids_notifications.json"
+    # nwb2bids_notifications_file_path = validations_directory / "nwb2bids_notifications.json"
     # nwb_inspector_version = importlib.metadata.version(distribution_name="nwbinspector").replace(".", "-")
     # nwb_inspection_file_path = inspections_directory / f"src-nwb-inspector_ver-{nwb_inspector_version}.txt"
     # dandi_validation_file_path = validations_directory / "dandi_validation.txt"
@@ -318,10 +324,7 @@ def _write_bids_dandiset(
     derivatives_directory.mkdir(exist_ok=True)
     validations_directory.mkdir(exist_ok=True)
 
-    if run_info["nwb2bids_branch"] == "main":
-        dataset_converter.convert_to_bids_dataset(bids_directory=repo_directory)
-    elif run_info["nwb2bids_branch"] == "alternative_sanitization":
-        dataset_converter.convert_to_bids_dataset()
+    dataset_converter.convert_to_bids_dataset()
 
     # Required for BIDs validation on Dandisets
     bids_ignore_file_path.write_text("dandiset.yaml\n")
@@ -335,9 +338,9 @@ def _write_bids_dandiset(
     }
     derivatives_dataset_description_file_path.write_text(json.dumps(obj=derivatives_dataset_description))
 
-    notifications_dump = [notification.model_dump(mode="json") for notification in dataset_converter.messages]
-    if len(notifications_dump) > 0:
-        nwb2bids_notifications_file_path.write_text(data=json.dumps(obj=notifications_dump, indent=2))
+    # notifications_dump = [notification.model_dump(mode="json") for notification in dataset_converter.messages]
+    # if len(notifications_dump) > 0:
+    #     nwb2bids_notifications_file_path.write_text(data=json.dumps(obj=notifications_dump, indent=2))
 
     # if nwb_inspection_file_path.exists() is False:
     #     dandiset_id = repo_directory.name
@@ -417,6 +420,8 @@ def _push_changes(repo_directory: pathlib.Path, branch_name: str) -> None:
 
 
 if __name__ == "__main__":
+    import argparse
+
     parser = argparse.ArgumentParser(description="Update BIDS validations for Dandisets")
     parser.add_argument(
         "--workers",
@@ -439,3 +444,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run(max_workers=args.workers, limit=args.limit, branch_name=args.branch)
+
+# Cody's debugging
+# if __name__ == "__main__":
+#     run(max_workers=1, limit=2, branch_name="draft", force=True)
