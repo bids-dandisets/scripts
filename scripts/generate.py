@@ -43,7 +43,7 @@ RAW_CONTENT_BASE_URL = "https://raw.githubusercontent.com/bids-dandisets"
 BASE_DIRECTORY = pathlib.Path("/data/dandi/bids-dandisets/work")
 
 # Cody's local debugging
-BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
+# BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
 
 BASE_DIRECTORY.mkdir(exist_ok=True)
 
@@ -415,30 +415,32 @@ def _push_changes(repo_directory: pathlib.Path, branch_name: str) -> None:
     _deploy_subprocess(command=push_command, cwd=repo_directory)
 
 
-# if __name__ == "__main__":
-#     parser = argparse.ArgumentParser(description="Update BIDS validations for Dandisets")
-#     parser.add_argument(
-#         "--workers",
-#         type=int,
-#         default=None,
-#         help="Maximum number of workers to use (default: None)",
-#     )
-#     parser.add_argument(
-#         "--limit",
-#         type=int,
-#         default=None,
-#         help="Maximum number of Dandisets to process (default: None)",
-#     )
-#     parser.add_argument(
-#         "--branch",
-#         type=str,
-#         default="draft",
-#         help="Branch name to use for validation (default: draft)",
-#     )
-#     args = parser.parse_args()
-#
-#     run(max_workers=args.workers, limit=args.limit, branch_name=args.branch)
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Update BIDS validations for Dandisets")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Maximum number of workers to use (default: None)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Maximum number of Dandisets to process (default: None)",
+    )
+    parser.add_argument(
+        "--branch",
+        type=str,
+        default="draft",
+        help="Branch name to use for validation (default: draft)",
+    )
+    args = parser.parse_args()
+
+    run(max_workers=args.workers, limit=args.limit, branch_name=args.branch)
 
 # Cody's debugging
-if __name__ == "__main__":
-    run(max_workers=1, limit=5, branch_name="draft")
+# if __name__ == "__main__":
+#     run(max_workers=1, limit=5, branch_name="draft")
