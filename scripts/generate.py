@@ -441,9 +441,15 @@ if __name__ == "__main__":
         default="draft",
         help="Branch name to use for validation (default: draft)",
     )
+    parser.add_argument(
+        "--force",
+        type=bool,
+        default=False,
+        help="Whether to force update even if up to date (default: False)",
+    )
     args = parser.parse_args()
 
-    run(max_workers=args.workers, limit=args.limit, branch_name=args.branch)
+    run(max_workers=args.workers, limit=args.limit, branch_name=args.branch, force=args.force)
 
 # Cody's debugging
 # if __name__ == "__main__":
