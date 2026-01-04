@@ -27,9 +27,9 @@ AUTHENTICATION_HEADER = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 # Config is likely temporary to suppress the 'unknown version' because we run from BEP32 schema
 THIS_FILE_PATH = pathlib.Path(__file__)
-BIDS_VALIDATION_CONFIG_FILE_PATH = THIS_FILE_PATH.parent / "bids_validation_config.json"
-if not BIDS_VALIDATION_CONFIG_FILE_PATH.exists():
-    message = f"BIDS validation config file not found at {BIDS_VALIDATION_CONFIG_FILE_PATH}!"
+BASE_BIDS_VALIDATION_CONFIG_FILE_PATH = THIS_FILE_PATH.parent / "base_bids_validation_config.json"
+if not BASE_BIDS_VALIDATION_CONFIG_FILE_PATH.exists():
+    message = f"BIDS validation config file not found at {BASE_BIDS_VALIDATION_CONFIG_FILE_PATH}!"
     raise FileNotFoundError(message)
 
 
@@ -106,7 +106,7 @@ def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
     bids_validator_command = (
         f"bids-validator-deno --ignoreNiftiHeaders --outfile {bids_validation_file_path} "
         "--schema https://bids-specification--1705.org.readthedocs.build/en/1705/schema.json "
-        f"--config {BIDS_VALIDATION_CONFIG_FILE_PATH} "
+        f"--config {BASE_BIDS_VALIDATION_CONFIG_FILE_PATH} "
         f"{repo_directory}"
     )
     out = _deploy_subprocess(
@@ -119,7 +119,7 @@ def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
     bids_validator_json_command = (
         f"bids-validator-deno --ignoreNiftiHeaders --verbose --json --outfile {bids_validation_json_file_path} "
         "--schema https://bids-specification--1705.org.readthedocs.build/en/1705/schema.json "
-        f"--config {BIDS_VALIDATION_CONFIG_FILE_PATH} "
+        f"--config {BASE_BIDS_VALIDATION_CONFIG_FILE_PATH} "
         f"{repo_directory}"
     )
     out = _deploy_subprocess(command=bids_validator_json_command, ignore_errors=True, return_combined_output=True)
