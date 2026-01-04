@@ -86,6 +86,9 @@ def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
     validations_directory = derivatives_directory / "validations"
     bids_validation_file_path = validations_directory / "bids_validation.txt"
     bids_validation_json_file_path = validations_directory / "bids_validation.json"
+    dandiset_bids_validation_config_file_path = validations_directory / "dandiset_bids_validation_config.json"
+    if not dandiset_bids_validation_config_file_path.exists():
+        dandiset_bids_validation_config_file_path.write_bytes(data=BASE_BIDS_VALIDATION_CONFIG_FILE_PATH.read_bytes())
 
     # Clean any previous runs
     if bids_validation_file_path.exists():
@@ -106,7 +109,7 @@ def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
     bids_validator_command = (
         f"bids-validator-deno --ignoreNiftiHeaders --outfile {bids_validation_file_path} "
         "--schema https://bids-specification--1705.org.readthedocs.build/en/1705/schema.json "
-        f"--config {BASE_BIDS_VALIDATION_CONFIG_FILE_PATH} "
+        f"--config {dandiset_bids_validation_config_file_path} "
         f"{repo_directory}"
     )
     out = _deploy_subprocess(
@@ -119,7 +122,7 @@ def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
     bids_validator_json_command = (
         f"bids-validator-deno --ignoreNiftiHeaders --verbose --json --outfile {bids_validation_json_file_path} "
         "--schema https://bids-specification--1705.org.readthedocs.build/en/1705/schema.json "
-        f"--config {BASE_BIDS_VALIDATION_CONFIG_FILE_PATH} "
+        f"--config {dandiset_bids_validation_config_file_path} "
         f"{repo_directory}"
     )
     out = _deploy_subprocess(command=bids_validator_json_command, ignore_errors=True, return_combined_output=True)
