@@ -82,7 +82,7 @@ def run(
             if limit is not None and counter >= limit:
                 break
 
-            if len(dandiset.get_assets()) == 0:
+            if len(list(dandiset.get_assets())) == 0:
                 print(f"Skipping Dandiset {dandiset.identifier} - no assets found!\n\n")
                 continue
 
@@ -109,7 +109,7 @@ def run(
                 if limit is not None and counter >= limit:
                     break
 
-                if len(dandiset.get_assets()) == 0:
+                if len(list(dandiset.get_assets())) == 0:
                     print(f"Skipping Dandiset {dandiset.identifier} - no assets found!\n\n")
                     continue
 

@@ -59,18 +59,27 @@ def reset_github_repos() -> None:
 
         print(f"Cleaning Dandiset {dandiset_id}...")
         if repo_directory.exists():
-            print("Cleaning local directory...")
+            print("\tCleaning local directory...")
             shutil.rmtree(path=repo_directory)
 
         repo_name = f"bids-dandisets/{dandiset_id}"
         repo_api_url = f"{BASE_GITHUB_API_URL}/{repo_name}"
         response = requests.get(url=repo_api_url, headers=authentication_header)
+
+        if response.status_code == 404:
+            print(f"\tRepository for {dandiset_id} does not exist. Skipping...")
+            continue
+
         if response.status_code == 200:
-            print("Cleaning repository...")
-            headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-            requests.delete(url=repo_api_url, headers=headers)
+            print("\tCleaning repository...")
+            delete_response = requests.delete(url=repo_api_url, headers=authentication_header)
+            if delete_response.status_code == 204:
+                print(f"\tRepository {repo_name} deleted successfully.")
+            else:
+                message = f"{delete_response.status_code}: {delete_response.text}"
+                raise RuntimeError(message)
         else:
-            message = f"{response=}"
+            message = f"{response.status_code}: {response.text}"
             raise RuntimeError(message)
         print("Cleaning complete!\n\n")
 
