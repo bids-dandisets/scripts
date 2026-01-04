@@ -50,13 +50,6 @@ BASE_DIRECTORY.mkdir(exist_ok=True)
 
 AUTHENTICATION_HEADER = {"Authorization": f"token {GITHUB_TOKEN}"}
 
-# Config is likely temporary to suppress the 'unknown version' because we run from BEP32 schema
-THIS_FILE_PATH = pathlib.Path(__file__)
-BIDS_VALIDATION_CONFIG_FILE_PATH = THIS_FILE_PATH.parent / "bids_validation_config.json"
-if not BIDS_VALIDATION_CONFIG_FILE_PATH.exists():
-    message = f"BIDS validation config file not found at {BIDS_VALIDATION_CONFIG_FILE_PATH}!"
-    raise FileNotFoundError(message)
-
 PARALLEL_LOG_DIRECTORY = BASE_DIRECTORY / ".parallel_logs"
 PARALLEL_LOG_DIRECTORY.mkdir(exist_ok=True)
 
