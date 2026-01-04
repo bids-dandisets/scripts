@@ -82,6 +82,15 @@ def run(
             if limit is not None and counter >= limit:
                 break
 
+            if len(dandiset.get_assets()) == 0:
+                print(f"Skipping Dandiset {dandiset.identifier} - no assets found!\n\n")
+                continue
+
+            data_standards = dandiset.get_raw_metadata().get("assetsSummary", dict()).get("dataStandard", list())
+            if not any(data_standard["identifier"] == "RRID:SCR_015242" for data_standard in data_standards):
+                print(f"Skipping Dandiset {dandiset.identifier} - no NWB assets found!\n\n")
+                continue
+
             dandiset_id = dandiset.identifier
             repo_directory = BASE_DIRECTORY / dandiset_id
 
@@ -99,6 +108,15 @@ def run(
             for counter, dandiset in enumerate(dandisets):
                 if limit is not None and counter >= limit:
                     break
+
+                if len(dandiset.get_assets()) == 0:
+                    print(f"Skipping Dandiset {dandiset.identifier} - no assets found!\n\n")
+                    continue
+
+                data_standards = dandiset.get_raw_metadata().get("assetsSummary", dict()).get("dataStandard", list())
+                if not any(data_standard["identifier"] == "RRID:SCR_015242" for data_standard in data_standards):
+                    print(f"Skipping Dandiset {dandiset.identifier} - no NWB assets found!\n\n")
+                    continue
 
                 dandiset_id = dandiset.identifier
                 repo_directory = BASE_DIRECTORY / dandiset_id
