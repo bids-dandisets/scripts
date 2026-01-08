@@ -43,7 +43,7 @@ RAW_CONTENT_BASE_URL = "https://raw.githubusercontent.com/bids-dandisets"
 
 BASE_DIRECTORY = pathlib.Path("/data/dandi/bids-dandisets/work")
 
-# Cody's local debugging
+# Cody's debugging
 # BASE_DIRECTORY = pathlib.Path("E:/GitHub/bids-dandisets/work")
 
 BASE_DIRECTORY.mkdir(exist_ok=True)
@@ -235,7 +235,7 @@ def _convert_dandiset(
         elif branch_name == "basic_sanitization":
             run_config = nwb2bids.RunConfig(
                 bids_directory=repo_directory,
-                sanitization_config=nwb2bids.sanitization.SanitizationConfig(SUB_LABELS=True, SES_LABELS=True),
+                sanitization_config=nwb2bids.sanitization.SanitizationConfig(sub_labels=True, ses_labels=True),
             )
             dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
                 dandiset_id=dandiset_id,
@@ -464,4 +464,6 @@ if __name__ == "__main__":
 
 # Cody's debugging
 # if __name__ == "__main__":
-#     run(max_workers=1, limit=2, branch_name="draft", force=True)
+#     LIMIT_SESSIONS = 10
+#
+#     run(max_workers=1, limit=2, branch_name="basic_sanitization", force=True)
