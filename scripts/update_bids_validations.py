@@ -84,6 +84,9 @@ def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
     repo_directory = WORKDIR / dandiset_id
     derivatives_directory = repo_directory / "derivatives"
     validations_directory = derivatives_directory / "validations"
+    derivatives_directory.mkdir(exist_ok=True)
+    validations_directory.mkdir(exist_ok=True)
+
     bids_validation_file_path = validations_directory / "bids_validation.txt"
     bids_validation_json_file_path = validations_directory / "bids_validation.json"
     dandiset_bids_validation_config_file_path = validations_directory / "dandiset_bids_validation_config.json"
@@ -210,3 +213,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run(limit=args.limit, branch_name=args.branch)
+
+# For debugging
+# if __name__ == "__main__":
+#     run(limit=1, branch_name="draft")
