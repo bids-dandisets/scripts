@@ -110,7 +110,7 @@ def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
 
     print(f"\tRunning BIDS Validation on {repo_directory}...")
     bids_validator_command = (
-        f"bids-validator-deno --ignoreNiftiHeaders --outfile {bids_validation_file_path} "
+        f"bids-validator-deno --ignoreNiftiHeaders --verbose --outfile {bids_validation_file_path} "
         "--schema https://bids-specification--1705.org.readthedocs.build/en/1705/schema.json "
         f"--config {dandiset_bids_validation_config_file_path} "
         f"{repo_directory}"
