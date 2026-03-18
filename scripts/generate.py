@@ -337,9 +337,6 @@ def _write_bids_dandiset(
 
     dataset_converter.convert_to_bids_dataset()
 
-    # Required for BIDs validation on Dandisets
-    bids_ignore_file_path.write_text("dandiset.yaml\n")
-
     # Required for BIDs validation on inspection derivatives
     derivatives_dataset_description = {
         "BIDSVersion": "1.10.0",
