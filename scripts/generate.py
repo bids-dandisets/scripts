@@ -228,7 +228,7 @@ def _convert_dandiset(
         print(f"\tConverting {dandiset_id}...")
 
         if branch_name == "draft":
-            run_config = nwb2bids.RunConfig(bids_directory=repo_directory)
+            run_config = nwb2bids.RunConfig(bids_directory=repo_directory, archive_target="dandi")
             dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
                 dandiset_id=dandiset_id, limit=LIMIT_SESSIONS, run_config=run_config
             )
@@ -236,6 +236,7 @@ def _convert_dandiset(
             run_config = nwb2bids.RunConfig(
                 bids_directory=repo_directory,
                 sanitization_config=nwb2bids.sanitization.SanitizationConfig(sub_labels=True, ses_labels=True),
+                archive_target="dandi",
             )
             dataset_converter = nwb2bids.DatasetConverter.from_remote_dandiset(
                 dandiset_id=dandiset_id,
@@ -317,7 +318,6 @@ def _write_bids_dandiset(
     run_info_file_path = nwb2bids_info_directory / "run_info.json"
     manifest_file_path = nwb2bids_info_directory / "manifest.txt"
 
-    bids_ignore_file_path = repo_directory / ".bidsignore"
     derivatives_directory = repo_directory / "derivatives"
     derivatives_dataset_description_file_path = derivatives_directory / "dataset_description.json"
     validations_directory = derivatives_directory / "validations"
