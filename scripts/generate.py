@@ -318,7 +318,6 @@ def _write_bids_dandiset(
     run_info_file_path = nwb2bids_info_directory / "run_info.json"
     manifest_file_path = nwb2bids_info_directory / "manifest.txt"
 
-    bids_ignore_file_path = repo_directory / ".bidsignore"
     derivatives_directory = repo_directory / "derivatives"
     derivatives_dataset_description_file_path = derivatives_directory / "dataset_description.json"
     validations_directory = derivatives_directory / "validations"
