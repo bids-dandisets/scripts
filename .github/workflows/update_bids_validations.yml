@@ -1,8 +1,8 @@
 name: Update BIDS validations
 
 on:
-  schedule:
-    - cron: "0 4 * * *"  # ~12am eastern time
+#  schedule:
+#    - cron: "0 4 * * *"  # ~12am eastern time
   workflow_dispatch:
     inputs:
       branch:
