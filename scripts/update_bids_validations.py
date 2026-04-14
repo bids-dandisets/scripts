@@ -110,7 +110,7 @@ def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
 
     print(f"\tRunning BIDS Validation on {repo_directory}...")
     bids_validator_command = (
-        f"bids-validator-deno --ignoreNiftiHeaders --outfile {bids_validation_file_path} "
+        f"bids-validator-deno --ignoreNiftiHeaders --max-rows -1 --outfile {bids_validation_file_path} "
         "--schema https://bids-specification--2307.org.readthedocs.build/en/2307/schema.json "
         f"--config {dandiset_bids_validation_config_file_path} "
         f"{repo_directory}"
@@ -123,7 +123,8 @@ def _run_bids_validation(dandiset_id: str, branch_name: str = "draft") -> None:
         raise FileNotFoundError(message)
 
     bids_validator_json_command = (
-        f"bids-validator-deno --ignoreNiftiHeaders --verbose --json --outfile {bids_validation_json_file_path} "
+        "bids-validator-deno --ignoreNiftiHeaders --max-rows -1 --verbose --json "
+        f"--outfile {bids_validation_json_file_path} "
         "--schema https://bids-specification--2307.org.readthedocs.build/en/2307/schema.json "
         f"--config {dandiset_bids_validation_config_file_path} "
         f"{repo_directory}"
